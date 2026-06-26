@@ -157,7 +157,7 @@ def fvg3_move(self):
 def simple_stitch(leftarm, rightarm, needle_location):
     # 1. Coordinate & Offset Definitions
     base_x, base_y = needle_location
-    base_x, base_y = base_x + 4, base_y + 1
+    base_x, base_y = base_x + 1.9, base_y + .4
     
     # The three vertical stages
     z_hover = 100.0         # Safe hovering height (clears the bed and the other arm)
@@ -165,14 +165,14 @@ def simple_stitch(leftarm, rightarm, needle_location):
     z_push_down = 25.0      # Lowest part to push the yarn down
     
     # Safe clearance distances to prevent arm collisions during transit
-    clearance_x = 90.0      # Pushes left arm further left, right arm further right
-    clearance_y = -15.0     # Pushes both arms back from the needle bed (change sign depending on your robot's base origin)
+    clearance_x = 100.0      # Pushes left arm further left, right arm further right
+    clearance_y = -25.0     # Pushes both arms back from the needle bed (change sign depending on your robot's base origin)
 
     # Rotations
     rot_left = [0.0, 0.0, 0] 
     rot_right = [0.0, 0.0, 0.0] 
     
-    offset_dist = 2.9
+    offset_dist = 1.6
 
     velocity=15
     
