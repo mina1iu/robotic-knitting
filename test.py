@@ -153,11 +153,16 @@ def fvg3_move(self):
             error = robot.MoveL([i*10, j*10, 50, 0, 0, 0],tool=1, user=1, vel=10)
             robot.WaitMs(250)
 
-
 def simple_stitch(leftarm, rightarm, needle_location):
     # 1. Coordinate & Offset Definitions
     base_x, base_y = needle_location
-    base_x, base_y = base_x + 1.9, base_y + .4
+    base_x, base_y = base_x + 1.81, base_y
+    
+    # --- Arm-Specific X-Axis Offsets ---
+    # Only the left arm shifts by -0.3 on the X-axis. 
+    # The right arm will just use the standard base_x.
+    left_x_offset = 4.3          
+    base_x_L = base_x - left_x_offset  
     
     # The three vertical stages
     z_hover = 100.0         # Safe hovering height (clears the bed and the other arm)
@@ -172,27 +177,27 @@ def simple_stitch(leftarm, rightarm, needle_location):
     rot_left = [0.0, 0.0, 0.0] 
     rot_right = [0.0, 0.0, 0.0] 
     
-    offset_dist = 1.6
+    offset_dist = 1.44
     velocity = 15
     
-    # --- LEFT ARM WAYPOINTS ---
+    # --- LEFT ARM WAYPOINTS (Using base_x_L) ---
     # Hover points pull further left (-clearance_x) and back (+clearance_y)
-    hover_west_L = [base_x - offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left
-    above_west_L = [base_x - offset_dist, base_y, z_above_needle] + rot_left
-    push_west_L  = [base_x - offset_dist, base_y, z_push_down] + rot_left
+    hover_west_L = [base_x_L - offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left
+    above_west_L = [base_x_L - offset_dist, base_y, z_above_needle] + rot_left
+    push_west_L  = [base_x_L - offset_dist, base_y, z_push_down] + rot_left
     
-    hover_east_L = [base_x + offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left
-    above_east_L = [base_x + offset_dist, base_y, z_above_needle] + rot_left
-    push_east_L  = [base_x + offset_dist, base_y, z_push_down] + rot_left
+    hover_east_L = [base_x_L + offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left
+    above_east_L = [base_x_L + offset_dist, base_y, z_above_needle] + rot_left
+    push_east_L  = [base_x_L + offset_dist, base_y, z_push_down] + rot_left
     
-    # --- RIGHT ARM WAYPOINTS ---
+    # --- RIGHT ARM WAYPOINTS (Using standard base_x) ---
     # Hover points pull further right (+clearance_x) and back (+clearance_y)
     hover_west_R = [base_x - offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right
     above_west_R = [base_x - offset_dist, base_y, z_above_needle] + rot_right
     push_west_R  = [base_x - offset_dist, base_y, z_push_down] + rot_right
     
-    # NEW: Diagonal retraction point (moves halfway out in X/Y while rising to z_above_needle)
-    diagonal_retract_west_R = [base_x - offset_dist + (clearance_x * 0.5), base_y + (clearance_y * 0.5), z_above_needle] + rot_right
+    # Diagonal retraction point (moves halfway out in X/Y while rising to z_above_needle)
+    diagonal_retract_west_R = [base_x - offset_dist + (clearance_x * 0.1), base_y + (clearance_y * 0.1), z_above_needle] + rot_right
     
     hover_east_R = [base_x + offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right
     above_east_R = [base_x + offset_dist, base_y, z_above_needle] + rot_right
@@ -286,6 +291,7 @@ def simple_stitch(leftarm, rightarm, needle_location):
     print("Right Arm: Retracting straight up to hover...")
     rightarm.MoveL(above_east_R, tool=1, user=1, vel=velocity)
     rightarm.MoveL(hover_east_R, tool=1, user=1, vel=velocity)
+
 # movej_test(robot)
 #robotright.MoveL([0, 0, 150, 0, 0, 0],tool=1, user=1, vel=10)
 simple_stitch(robotleft,robotright,[0,0])
