@@ -153,25 +153,26 @@ def fvg3_move(self):
             error = robot.MoveL([i*10, j*10, 50, 0, 0, 0],tool=1, user=1, vel=10)
             robot.WaitMs(250)
 
+
+import time
+
 def simple_stitch(leftarm, rightarm, needle_location):
     # 1. Coordinate & Offset Definitions
     base_x, base_y = needle_location
     base_x, base_y = base_x + 1.81, base_y
     
     # --- Arm-Specific X-Axis Offsets ---
-    # Only the left arm shifts by -0.3 on the X-axis. 
-    # The right arm will just use the standard base_x.
     left_x_offset = 4.3          
     base_x_L = base_x - left_x_offset  
     
     # The three vertical stages
-    z_hover = 100.0         # Safe hovering height (clears the bed and the other arm)
-    z_above_needle = 40.0   # Spot right above the needle for approach
+    z_hover = 100.0         # Safe hovering height 
+    z_above_needle = 40.0   # Spot right above the needle
     z_push_down = 25.0      # Lowest part to push the yarn down
     
-    # Safe clearance distances to prevent arm collisions during transit
-    clearance_x = 100.0      # Pushes left arm further left, right arm further right
-    clearance_y = -25.0      # Pushes both arms back from the needle bed 
+    # Safe clearance distances
+    clearance_x = 100.0     
+    clearance_y = -25.0     
 
     # Rotations
     rot_left = [0.0, 0.0, 0.0] 
@@ -180,117 +181,129 @@ def simple_stitch(leftarm, rightarm, needle_location):
     offset_dist = 1.44
     velocity = 15
     
-    # --- LEFT ARM WAYPOINTS (Using base_x_L) ---
-    # Hover points pull further left (-clearance_x) and back (+clearance_y)
-    hover_west_L = [base_x_L - offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left
-    above_west_L = [base_x_L - offset_dist, base_y, z_above_needle] + rot_left
-    push_west_L  = [base_x_L - offset_dist, base_y, z_push_down] + rot_left
-    
-    hover_east_L = [base_x_L + offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left
-    above_east_L = [base_x_L + offset_dist, base_y, z_above_needle] + rot_left
-    push_east_L  = [base_x_L + offset_dist, base_y, z_push_down] + rot_left
-    
-    # --- RIGHT ARM WAYPOINTS (Using standard base_x) ---
-    # Hover points pull further right (+clearance_x) and back (+clearance_y)
-    hover_west_R = [base_x - offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right
-    above_west_R = [base_x - offset_dist, base_y, z_above_needle] + rot_right
-    push_west_R  = [base_x - offset_dist, base_y, z_push_down] + rot_right
-    
-    # Diagonal retraction point (moves halfway out in X/Y while rising to z_above_needle)
-    diagonal_retract_west_R = [base_x - offset_dist + (clearance_x * 0.1), base_y + (clearance_y * 0.1), z_above_needle] + rot_right
-    
-    hover_east_R = [base_x + offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right
-    above_east_R = [base_x + offset_dist, base_y, z_above_needle] + rot_right
-    push_east_R  = [base_x + offset_dist, base_y, z_push_down] + rot_right
+    # ==========================================
+    # --- WAYPOINT LOOKUP TABLE ---
+    # ==========================================
+    waypoints = {
+        # --- LEFT ARM ---
+        "hover_west_L": [base_x_L - offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
+        "above_west_L": [base_x_L - offset_dist, base_y, z_above_needle] + rot_left,
+        "push_west_L":  [base_x_L - offset_dist, base_y, z_push_down] + rot_left,
+        
+        # Pulling the yarn twice the offset to the West, staying at the "above" Z-height
+        "above_far_west_L": [base_x_L - (offset_dist * 8), base_y, z_above_needle] + rot_left,
+        
+        "hover_east_L": [base_x_L + offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
+        "above_east_L": [base_x_L + offset_dist, base_y, z_above_needle] + rot_left,
+        "push_east_L":  [base_x_L + offset_dist, base_y, z_push_down] + rot_left,
+        
+        # --- RIGHT ARM ---
+        "hover_west_R": [base_x - offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
+        "above_west_R": [base_x - offset_dist, base_y, z_above_needle] + rot_right,
+        "push_west_R":  [base_x - offset_dist, base_y, z_push_down] + rot_right,
+        "diagonal_retract_west_R": [base_x - offset_dist + (clearance_x * 0.1), base_y + (clearance_y * 0.1), z_above_needle] + rot_right,
+        
+        "hover_east_R": [base_x + offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
+        "above_east_R": [base_x + offset_dist, base_y, z_above_needle] + rot_right,
+        "push_east_R":  [base_x + offset_dist, base_y, z_push_down] + rot_right
+    }
 
+
+    #Moving both arms to their respective hover positions
+    print("Moving Left Arm to West hover...")
+    leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
+    print("Moving Right Arm to West hover...")
+    rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
 
     # ==========================================
     # --- STEP 1: Right arm puts new loop on West
     # ==========================================
-    print("Right Arm: Moving to West hover...")
-    rightarm.MoveL(hover_west_R, tool=1, user=1, vel=velocity)
+    # print("Right Arm: Moving to West hover...")
+    # rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Approaching above needle...")
-    rightarm.MoveL(above_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Pushing down to place loop...")
-    rightarm.MoveL(push_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=velocity)
 
     print("Actuating needle bed (AO)...")
     rightarm.SetAO(1, 100.0) 
     time.sleep(0.5)
     
     print("Right Arm: Releasing loop...")
-    rightarm.SetDO(1, 0, 0, 0) # Gripper open
+    rightarm.SetDO(1, 0, 0, 0) 
     time.sleep(0.5)
     
     print("Right Arm: Retracting diagonally at first...")
-    rightarm.MoveL(diagonal_retract_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["diagonal_retract_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Moving to safe hover...")
-    rightarm.MoveL(hover_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
     
     
     # ==========================================
     # --- STEP 2: Left arm grabs East and pulls West
     # ==========================================
     print("Left Arm: Moving to East hover...")
-    leftarm.MoveL(hover_east_L, tool=1, user=1, vel=velocity)
+    leftarm.MoveL(waypoints["hover_east_L"], tool=1, user=1, vel=velocity)
     
     print("Left Arm: Approaching above East needle...")
-    leftarm.MoveL(above_east_L, tool=1, user=1, vel=velocity)
+    leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=velocity)
     
     print("Left Arm: Pushing down to grab East yarn...")
-    leftarm.MoveL(push_east_L, tool=1, user=1, vel=velocity)
+    leftarm.MoveL(waypoints["push_east_L"], tool=1, user=1, vel=velocity)
     
     print("Left Arm: Closing gripper...")
-    leftarm.SetDO(1, 1, 0, 0) # Gripper close
+    leftarm.SetDO(1, 1, 0, 0) 
     time.sleep(0.5)
     
-    print("Left Arm: Pulling yarn toward West (staying low)...")
-    leftarm.MoveL(push_west_L, tool=1, user=1, vel=velocity)
+    print("Left Arm: Lifting yarn straight up...")
+    leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=velocity)
+    
+    print("Left Arm: Pulling yarn far West (twice the offset)...")
+    leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=1, vel=velocity)
     
     print("Left Arm: Releasing pulled yarn...")
-    leftarm.SetDO(1, 0, 0, 0) # Gripper open
+    leftarm.SetDO(1, 0, 0, 0) 
     time.sleep(0.5)
     
     print("Left Arm: Retracting straight up to hover...")
-    leftarm.MoveL(above_west_L, tool=1, user=1, vel=velocity)
-    leftarm.MoveL(hover_west_L, tool=1, user=1, vel=velocity)
+    leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
 
 
     # ==========================================
     # --- STEP 3: Right arm picks up West, drops East
     # ==========================================
     print("Right Arm: Moving to West hover...")
-    rightarm.MoveL(hover_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Approaching above West needle...")
-    rightarm.MoveL(above_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Pushing down to pick up West yarn...")
-    rightarm.MoveL(push_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Closing gripper...")
-    rightarm.SetDO(1, 1, 0, 0) # Gripper close
+    rightarm.SetDO(1, 1, 0, 0) 
     time.sleep(0.5)
     
     print("Right Arm: Lifting yarn above needle for transit...")
-    rightarm.MoveL(above_west_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Moving yarn to above East needle...")
-    rightarm.MoveL(above_east_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["above_east_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Pushing down to drop yarn in East...")
-    rightarm.MoveL(push_east_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["push_east_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Dropping yarn...")
-    rightarm.SetDO(1, 0, 0, 0) # Gripper open
+    rightarm.SetDO(1, 0, 0, 0) 
     time.sleep(0.5)
     
     print("Right Arm: Retracting straight up to hover...")
-    rightarm.MoveL(above_east_R, tool=1, user=1, vel=velocity)
-    rightarm.MoveL(hover_east_R, tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["above_east_R"], tool=1, user=1, vel=velocity)
+    rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=1, vel=velocity)
 
 # movej_test(robot)
 #robotright.MoveL([0, 0, 150, 0, 0, 0],tool=1, user=1, vel=10)
