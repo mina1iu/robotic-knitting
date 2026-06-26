@@ -166,15 +166,14 @@ def simple_stitch(leftarm, rightarm, needle_location):
     
     # Safe clearance distances to prevent arm collisions during transit
     clearance_x = 100.0      # Pushes left arm further left, right arm further right
-    clearance_y = -25.0     # Pushes both arms back from the needle bed (change sign depending on your robot's base origin)
+    clearance_y = -25.0      # Pushes both arms back from the needle bed 
 
     # Rotations
-    rot_left = [0.0, 0.0, 0] 
+    rot_left = [0.0, 0.0, 0.0] 
     rot_right = [0.0, 0.0, 0.0] 
     
     offset_dist = 1.6
-
-    velocity=15
+    velocity = 15
     
     # --- LEFT ARM WAYPOINTS ---
     # Hover points pull further left (-clearance_x) and back (+clearance_y)
@@ -191,6 +190,9 @@ def simple_stitch(leftarm, rightarm, needle_location):
     hover_west_R = [base_x - offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right
     above_west_R = [base_x - offset_dist, base_y, z_above_needle] + rot_right
     push_west_R  = [base_x - offset_dist, base_y, z_push_down] + rot_right
+    
+    # NEW: Diagonal retraction point (moves halfway out in X/Y while rising to z_above_needle)
+    diagonal_retract_west_R = [base_x - offset_dist + (clearance_x * 0.5), base_y + (clearance_y * 0.5), z_above_needle] + rot_right
     
     hover_east_R = [base_x + offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right
     above_east_R = [base_x + offset_dist, base_y, z_above_needle] + rot_right
@@ -217,8 +219,10 @@ def simple_stitch(leftarm, rightarm, needle_location):
     rightarm.SetDO(1, 0, 0, 0) # Gripper open
     time.sleep(0.5)
     
-    print("Right Arm: Retracting straight up to hover...")
-    rightarm.MoveL(above_west_R, tool=1, user=1, vel=velocity)
+    print("Right Arm: Retracting diagonally at first...")
+    rightarm.MoveL(diagonal_retract_west_R, tool=1, user=1, vel=velocity)
+    
+    print("Right Arm: Moving to safe hover...")
     rightarm.MoveL(hover_west_R, tool=1, user=1, vel=velocity)
     
     
