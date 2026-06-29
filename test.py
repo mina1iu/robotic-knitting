@@ -154,7 +154,17 @@ def fvg3_move(self):
             robot.WaitMs(250)
 
 
-import time
+def close_gripper(arm):
+    print("Gripper closing...")
+    # Port 0, Value 100.0
+    arm.SetAO(0, 0.0) 
+    time.sleep(0.5)
+
+def open_gripper(arm):
+    print("Gripper opening...")
+    # Port 0, Value 0.0
+    arm.SetAO(0, 100.0) 
+    time.sleep(0.5)
 
 def simple_stitch(leftarm, rightarm, needle_location):
     # 1. Coordinate & Offset Definitions
@@ -306,8 +316,12 @@ def simple_stitch(leftarm, rightarm, needle_location):
     rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=1, vel=velocity)
 
 # movej_test(robot)
-#robotright.MoveL([0, 0, 150, 0, 0, 0],tool=1, user=1, vel=10)
-simple_stitch(robotleft,robotright,[0,0])
+
+#simple_stitch(robotleft,robotright,[0,0])
+open_gripper(robotleft)
+close_gripper(robotleft)
+
+
 #fvg3_move(robot)
 # startjog(robot)
 # stopjog(robot)
