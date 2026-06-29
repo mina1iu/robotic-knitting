@@ -163,8 +163,13 @@ def close_gripper(arm):
 def open_gripper(arm):
     print("Gripper opening...")
     # Port 0, Value 0.0
-    arm.SetAO(0, 100.0) 
+    arm.SetAO(0, 20.0) 
     time.sleep(0.5)
+
+# open_gripper(robotleft)
+# open_gripper(robotright)
+# close_gripper(robotleft)
+# close_gripper(robotright)
 
 def simple_stitch(leftarm, rightarm, needle_location):
     # 1. Coordinate & Offset Definitions
@@ -180,7 +185,7 @@ def simple_stitch(leftarm, rightarm, needle_location):
     z_above_needle = 40.0   # Spot right above the needle
     z_push_down = 25.0      # Lowest part to push the yarn down
     
-    # Safe clearance distances
+    # Safe clearance distances for hover
     clearance_x = 100.0     
     clearance_y = -25.0     
 
@@ -188,8 +193,11 @@ def simple_stitch(leftarm, rightarm, needle_location):
     rot_left = [0.0, 0.0, 0.0] 
     rot_right = [0.0, 0.0, 0.0] 
     
-    offset_dist = 1.44
+    #distance differenece between left and right arm, 1.44
+    offset_dist = 1.6
+    diagonal_factor=.03
     velocity = 15
+
     
     # ==========================================
     # --- WAYPOINT LOOKUP TABLE ---
@@ -199,58 +207,57 @@ def simple_stitch(leftarm, rightarm, needle_location):
         "hover_west_L": [base_x_L - offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
         "above_west_L": [base_x_L - offset_dist, base_y, z_above_needle] + rot_left,
         "push_west_L":  [base_x_L - offset_dist, base_y, z_push_down] + rot_left,
+        # NEW: Left arm retracts diagonally to the LEFT (- X)
+        "diagonal_retract_west_L": [base_x_L - offset_dist - (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_left,
         
-        # Pulling the yarn twice the offset to the West, staying at the "above" Z-height
         "above_far_west_L": [base_x_L - (offset_dist * 8), base_y, z_above_needle] + rot_left,
         
         "hover_east_L": [base_x_L + offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
         "above_east_L": [base_x_L + offset_dist, base_y, z_above_needle] + rot_left,
         "push_east_L":  [base_x_L + offset_dist, base_y, z_push_down] + rot_left,
+        # NEW: Left arm retracts diagonally to the LEFT (- X)
+        "diagonal_retract_east_L": [base_x_L + offset_dist - (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_left,
         
         # --- RIGHT ARM ---
         "hover_west_R": [base_x - offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
         "above_west_R": [base_x - offset_dist, base_y, z_above_needle] + rot_right,
         "push_west_R":  [base_x - offset_dist, base_y, z_push_down] + rot_right,
-        "diagonal_retract_west_R": [base_x - offset_dist + (clearance_x * 0.1), base_y + (clearance_y * 0.1), z_above_needle] + rot_right,
+        # Right arm retracts diagonally to the RIGHT (+ X)
+        "diagonal_retract_west_R": [base_x - offset_dist + (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_right,
         
         "hover_east_R": [base_x + offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
         "above_east_R": [base_x + offset_dist, base_y, z_above_needle] + rot_right,
-        "push_east_R":  [base_x + offset_dist, base_y, z_push_down] + rot_right
+        "push_east_R":  [base_x + offset_dist, base_y, z_push_down] + rot_right,
+        # NEW: Right arm retracts diagonally to the RIGHT (+ X)
+        "diagonal_retract_east_R": [base_x + offset_dist + (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_right
     }
 
-
-    #Moving both arms to their respective hover positions
+    # Moving both arms to their respective hover positions
     print("Moving Left Arm to West hover...")
     leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
     print("Moving Right Arm to West hover...")
     rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
 
+    #right arm needs to grab yarn somehow
+    
     # ==========================================
     # --- STEP 1: Right arm puts new loop on West
     # ==========================================
-    # print("Right Arm: Moving to West hover...")
-    # rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
-    
     print("Right Arm: Approaching above needle...")
     rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Pushing down to place loop...")
     rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=velocity)
 
-    print("Actuating needle bed (AO)...")
-    rightarm.SetAO(1, 100.0) 
-    time.sleep(0.5)
-    
     print("Right Arm: Releasing loop...")
-    rightarm.SetDO(1, 0, 0, 0) 
-    time.sleep(0.5)
+    open_gripper(rightarm)
     
     print("Right Arm: Retracting diagonally at first...")
     rightarm.MoveL(waypoints["diagonal_retract_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Moving to safe hover...")
     rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
-    
+
     
     # ==========================================
     # --- STEP 2: Left arm grabs East and pulls West
@@ -261,25 +268,20 @@ def simple_stitch(leftarm, rightarm, needle_location):
     print("Left Arm: Approaching above East needle...")
     leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=velocity)
     
+    print("Left Arm: Opening gripper...")
+    open_gripper(leftarm)
+
     print("Left Arm: Pushing down to grab East yarn...")
     leftarm.MoveL(waypoints["push_east_L"], tool=1, user=1, vel=velocity)
     
     print("Left Arm: Closing gripper...")
-    leftarm.SetDO(1, 1, 0, 0) 
-    time.sleep(0.5)
+    close_gripper(leftarm)
     
     print("Left Arm: Lifting yarn straight up...")
     leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=velocity)
     
     print("Left Arm: Pulling yarn far West (twice the offset)...")
     leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=1, vel=velocity)
-    
-    print("Left Arm: Releasing pulled yarn...")
-    leftarm.SetDO(1, 0, 0, 0) 
-    time.sleep(0.5)
-    
-    print("Left Arm: Retracting straight up to hover...")
-    leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
 
 
     # ==========================================
@@ -295,8 +297,7 @@ def simple_stitch(leftarm, rightarm, needle_location):
     rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Closing gripper...")
-    rightarm.SetDO(1, 1, 0, 0) 
-    time.sleep(0.5)
+    close_gripper(rightarm)
     
     print("Right Arm: Lifting yarn above needle for transit...")
     rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
@@ -308,18 +309,18 @@ def simple_stitch(leftarm, rightarm, needle_location):
     rightarm.MoveL(waypoints["push_east_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Dropping yarn...")
-    rightarm.SetDO(1, 0, 0, 0) 
-    time.sleep(0.5)
+    open_gripper(rightarm)
     
-    print("Right Arm: Retracting straight up to hover...")
-    rightarm.MoveL(waypoints["above_east_R"], tool=1, user=1, vel=velocity)
+    # NEW: Right arm diagonal retract for the East needle
+    print("Right Arm: Retracting diagonally at first...")
+    rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=1, vel=velocity)
+    
+    print("Right Arm: Moving to safe hover...")
     rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=1, vel=velocity)
 
 # movej_test(robot)
 
-#simple_stitch(robotleft,robotright,[0,0])
-open_gripper(robotleft)
-close_gripper(robotleft)
+simple_stitch(robotleft,robotright,[0,0])
 
 
 #fvg3_move(robot)
