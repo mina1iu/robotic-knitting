@@ -171,10 +171,31 @@ def open_gripper(arm):
 # close_gripper(robotleft)
 # close_gripper(robotright)
 
+# --- GRID TO PHYSICAL COORDINATE CONVERTER ---
+def calculate_physical_needle_location(grid_coord, bed_origin):
+    """
+    Converts an integer grid coordinate (e.g., (0,0) or (5,5))
+    into the physical [base_x, base_y] coordinates for the robot.
+    """
+    grid_x, grid_y = grid_coord
+    origin_x, origin_y = bed_origin
+    
+    # The Pitch (Calculated from your 5-needle span)
+    pitch_x = 9.84  # mm between columns (left to right)
+    pitch_y = 10.10 # mm between rows (front to back)
+    
+    # Calculate the real-world coordinates for the specific grid point
+    real_x = origin_x + (grid_x * pitch_x)
+    real_y = origin_y + (grid_y * pitch_y)
+    
+    print(f"Mapped grid {grid_coord} to physical coordinates [{real_x:.2f}, {real_y:.2f}]")
+    return [real_x, real_y]
+
+
 def simple_stitch(leftarm, rightarm, needle_location):
-    # 1. Coordinate & Offset Definitions
+    # 1. Coordinate Definitions
+    # The +1.81 offset is gone from here! needle_location is now perfectly calibrated.
     base_x, base_y = needle_location
-    base_x, base_y = base_x + 1.81, base_y
     
     # --- Arm-Specific X-Axis Offsets ---
     left_x_offset = 4.3          
@@ -193,9 +214,9 @@ def simple_stitch(leftarm, rightarm, needle_location):
     rot_left = [0.0, 0.0, 0.0] 
     rot_right = [0.0, 0.0, 0.0] 
     
-    #distance differenece between left and right arm, 1.44
+    # Distance difference between left and right arm
     offset_dist = 1.6
-    diagonal_factor=.03
+    diagonal_factor = 0.04
     velocity = 15
 
     
@@ -207,7 +228,6 @@ def simple_stitch(leftarm, rightarm, needle_location):
         "hover_west_L": [base_x_L - offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
         "above_west_L": [base_x_L - offset_dist, base_y, z_above_needle] + rot_left,
         "push_west_L":  [base_x_L - offset_dist, base_y, z_push_down] + rot_left,
-        # NEW: Left arm retracts diagonally to the LEFT (- X)
         "diagonal_retract_west_L": [base_x_L - offset_dist - (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_left,
         
         "above_far_west_L": [base_x_L - (offset_dist * 8), base_y, z_above_needle] + rot_left,
@@ -215,20 +235,17 @@ def simple_stitch(leftarm, rightarm, needle_location):
         "hover_east_L": [base_x_L + offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
         "above_east_L": [base_x_L + offset_dist, base_y, z_above_needle] + rot_left,
         "push_east_L":  [base_x_L + offset_dist, base_y, z_push_down] + rot_left,
-        # NEW: Left arm retracts diagonally to the LEFT (- X)
         "diagonal_retract_east_L": [base_x_L + offset_dist - (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_left,
         
         # --- RIGHT ARM ---
         "hover_west_R": [base_x - offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
         "above_west_R": [base_x - offset_dist, base_y, z_above_needle] + rot_right,
         "push_west_R":  [base_x - offset_dist, base_y, z_push_down] + rot_right,
-        # Right arm retracts diagonally to the RIGHT (+ X)
         "diagonal_retract_west_R": [base_x - offset_dist + (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_right,
         
         "hover_east_R": [base_x + offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
         "above_east_R": [base_x + offset_dist, base_y, z_above_needle] + rot_right,
         "push_east_R":  [base_x + offset_dist, base_y, z_push_down] + rot_right,
-        # NEW: Right arm retracts diagonally to the RIGHT (+ X)
         "diagonal_retract_east_R": [base_x + offset_dist + (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_right
     }
 
@@ -237,8 +254,6 @@ def simple_stitch(leftarm, rightarm, needle_location):
     leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
     print("Moving Right Arm to West hover...")
     rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
-
-    #right arm needs to grab yarn somehow
     
     # ==========================================
     # --- STEP 1: Right arm puts new loop on West
@@ -258,7 +273,6 @@ def simple_stitch(leftarm, rightarm, needle_location):
     print("Right Arm: Moving to safe hover...")
     rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
 
-    
     # ==========================================
     # --- STEP 2: Left arm grabs East and pulls West
     # ==========================================
@@ -282,7 +296,6 @@ def simple_stitch(leftarm, rightarm, needle_location):
     
     print("Left Arm: Pulling yarn far West (twice the offset)...")
     leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=1, vel=velocity)
-
 
     # ==========================================
     # --- STEP 3: Right arm picks up West, drops East
@@ -311,31 +324,31 @@ def simple_stitch(leftarm, rightarm, needle_location):
     print("Right Arm: Dropping yarn...")
     open_gripper(rightarm)
     
-    # NEW: Right arm diagonal retract for the East needle
     print("Right Arm: Retracting diagonally at first...")
     rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=1, vel=velocity)
     
     print("Right Arm: Moving to safe hover...")
     rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=1, vel=velocity)
 
-# movej_test(robot)
+    # Left arm drops yarn and return to position
+    print("Left Arm: Dropping yarn...")
+    open_gripper(leftarm)
 
-simple_stitch(robotleft,robotright,[0,0])
+    print("Left Arm: Moving to safe hover...")
+    leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
 
+# ==========================================
+# --- EXECUTION ---
+# ==========================================
 
-#fvg3_move(robot)
-# startjog(robot)
-# stopjog(robot)
-# immstopjog(robot)
-# movej(robot)
-# movel(robot)
-# movecart(robot)
-# movec(robot)
-# circle(robot)
-# newspiral(robot)
-# servoj(robot)
-# servocart(robot)
-# splineptp(robot)
-# newsplineptp(robot)
-# pointsoffset(robot)
-# jointoverspeedprotect(robot)
+# 1. Define the physical location of needle (0,0).
+current_bed_origin = [1.81, -0.50]
+
+# 2. Define which needle you want to interact with on your grid
+target_grid_needle = (0, 0)
+
+# 3. Convert grid location to the robot's physical X/Y millimeter coordinates
+physical_location = calculate_physical_needle_location(target_grid_needle, current_bed_origin)
+
+# 4. Input physical location
+simple_stitch(robotleft, robotright, physical_location)
