@@ -121,41 +121,41 @@ class Needle:
         }
 
         # Initialize to safe hover positions
-        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=self.velocity)
+        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=2, vel=self.velocity)
         
         # Step 1: Right arm places new loop on West needle
-        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["push_west_R"], tool=1, user=2, vel=self.velocity)
         open_gripper(rightarm)
-        rightarm.MoveL(waypoints["diagonal_retract_west_R"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["diagonal_retract_west_R"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=2, vel=self.velocity)
 
         # Step 2: Left arm grabs East loop and pulls it West
-        leftarm.MoveL(waypoints["hover_east_L"], tool=1, user=1, vel=self.velocity)
-        leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=self.velocity)
+        leftarm.MoveL(waypoints["hover_east_L"], tool=1, user=2, vel=self.velocity)
+        leftarm.MoveL(waypoints["above_east_L"], tool=1, user=2, vel=self.velocity)
         open_gripper(leftarm)
-        leftarm.MoveL(waypoints["push_east_L"], tool=1, user=1, vel=self.velocity)
+        leftarm.MoveL(waypoints["push_east_L"], tool=1, user=2, vel=self.velocity)
         close_gripper(leftarm)
         
-        leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=self.velocity)
-        leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=1, vel=self.velocity)
+        leftarm.MoveL(waypoints["above_east_L"], tool=1, user=2, vel=self.velocity)
+        leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=2, vel=self.velocity)
         open_gripper(leftarm)
-        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=self.velocity)
+        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
 
         # Step 3: Right arm moves West loop to East needle
-        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["push_west_R"], tool=1, user=2, vel=self.velocity)
         close_gripper(rightarm)
         
-        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["above_east_R"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["push_east_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["above_east_R"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["push_east_R"], tool=1, user=2, vel=self.velocity)
         open_gripper(rightarm)
         
-        rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=1, vel=self.velocity)
-        rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=2, vel=self.velocity)
+        rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=2, vel=self.velocity)
 
 # --- Execution ---
 needle_bed = {}
@@ -166,10 +166,7 @@ for x in range(6):
         needle_bed[(x, y)] = Needle(grid_x=x, grid_y=y)
 
 target_needle = needle_bed[(0, 0)]
-target_needle.simple_stitch(robotleft, robotright)
-
-
-
+#target_needle.simple_stitch(robotleft, robotright)
 
 
 
@@ -180,6 +177,7 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
     Traces the entire 6x6 needle bed to visually verify physical calibration.
     Moves row by row (Y), gliding across columns (X).
     Applies the pre-calculated left-arm offset if is_left_arm=True.
+    Parks safely out of the workspace when finished.
     """
     z_push = 35.0
     z_hop = z_push + 30.0  # 55.0 mm to clear the sticking out needles
@@ -195,22 +193,22 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
     # Start at a safe hover above (0,0) before beginning the sequence
     first_needle = needle_bed[(0, 0)]
     start_x = get_target_x(first_needle)
-    arm.MoveL([start_x, first_needle.physical_y, 100.0] + rot, tool=1, user=1, vel=velocity)
+    arm.MoveL([start_x, first_needle.physical_y, 100.0] + rot, tool=1, user=2, vel=velocity)
     
     for y in range(6):
         # 1. Move to the start of the row (x=0) at the safe hop height
         start_needle = needle_bed[(0, y)]
         target_x = get_target_x(start_needle)
-        arm.MoveL([target_x, start_needle.physical_y, z_hop] + rot, tool=1, user=1, vel=velocity)
+        arm.MoveL([target_x, start_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
         
         # 2. Move down 30mm to the glide/push height
-        arm.MoveL([target_x, start_needle.physical_y, z_push] + rot, tool=1, user=1, vel=velocity)
+        arm.MoveL([target_x, start_needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
         
         # 3. Glide through all X values in the current row
         for x in range(6):
             needle = needle_bed[(x, y)]
             target_x = get_target_x(needle)
-            arm.MoveL([target_x, needle.physical_y, z_push] + rot, tool=1, user=1, vel=velocity)
+            arm.MoveL([target_x, needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
             
             # Brief pause at each needle so you can visually verify alignment
             time.sleep(0.5)  
@@ -218,10 +216,13 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
         # 4. End of the row (x=5), move straight up 30mm to clear the needles
         end_needle = needle_bed[(5, y)]
         target_x = get_target_x(end_needle)
-        arm.MoveL([target_x, end_needle.physical_y, z_hop] + rot, tool=1, user=1, vel=velocity)
+        arm.MoveL([target_x, end_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
 
-    print(f">> Test path complete for {arm_name}. Returning to safe hover.")
-    arm.MoveL([start_x, first_needle.physical_y, 100.0] + rot, tool=1, user=1, vel=velocity)
+    print(f">> Test path complete for {arm_name}. Moving to safe park position.")
+    
+    # NEW: Move out of the way to avoid dual-arm collisions
+    park_x = -100.0 if is_left_arm else 150.0
+    arm.MoveL([park_x, first_needle.physical_y, 100.0] + rot, tool=1, user=2, vel=velocity)
 
 
 # ==========================================
