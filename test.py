@@ -20,149 +20,13 @@ DP3 = [102.939,-378.069,613.165,176.687,1.217,86.329]
 desc = [0,0,0,0,0,0]
 
 
-def startjog(self):
-    """机器人点动测试"""
-    print("关节1、负向运动、90°、速度30、加速度100")
-    error = robot.StartJOG(ref=0,nb=1,dir=0,max_dis=10,vel=30)
-    print("StartJOG return ",error)
-
-def stopjog(self):
-    """机器人点动减速停止测试"""
-    robot.StartJOG(ref=0,nb=1,dir=1,max_dis=90,vel=50)
-    time.sleep(3)
-    print("关节点动停止")
-    error = robot.StopJOG(ref=1)
-    print("StopJOG return ",error)
-
-def immstopjog(self):
-    """机器人点动立即停止测试"""
-    robot.StartJOG(ref=0,nb=1,dir=1,max_dis=90,vel=50)
-    time.sleep(3)
-    print("关节立即点动停止")
-    error = robot.ImmStopJOG()
-    print("ImmStopJOG return ",error)
-
-def movej(self):
-    """机器人MoveJ测试"""
-    JP = [28.166,-108.269,-59.859,-87,94.532,-0.7]
-    error = robot.MoveJ(JP,tool=0,user=0, vel=30)
-    print("MoveJ return ",error)
-
-def movel(self):
-    """机器人MoveL测试"""
-    error = robot.MoveL(DP1,tool=0,user=0, vel=30)
-    print("MoveL return ",error)
-
-def movecart(self):
-    """机器人MoveCart测试"""
-    error = robot.MoveCart(DP2,tool=0,user=0, vel=30)
-    print("MoveCart return ",error)
-
-def movec(self):
-    """机器人MoveC测试"""
-    robot.MoveCart(DP2, tool=0, user=0, vel=30)
-    error = robot.MoveC(desc_pos_p=DP3,tool_p=0,user_p=0,desc_pos_t=DP1,tool_t=0,user_t=0)
-    print("MoveC return ",error)
-
-def circle(self):
-    """机器人Circle测试"""
-    error = robot.Circle(desc_pos_p=DP3,tool_p=0,user_p=0,desc_pos_t=DP2,tool_t=0,user_t=0)
-    print("Circle return ",error)
-
-def newspiral(self):
-    """机器人NewSpiral测试"""
-    error = robot.NewSpiral(desc_pos=DP2_h,tool=0,user=0,param=[5.0,10,30,10,5,0])
-    print("NewSpiral return ",error)
-
-def servoj(self):
-    """机器人ServoJ测试"""
-    error,pos = robot.GetActualJointPosDegree()
-    robot.ServoMoveStart()
-    i=0
-    while i < 100:
-        time.sleep(0.1)
-        pos[4] -= 0.2
-        error = robot.ServoJ(joint_pos=pos,axisPos=[0,0,0,0])
-        i += 1
-    robot.ServoMoveEnd()
-    print("ServoJ return ",error)
-
-def servocart(self):
-    """机器人ServoCart测试"""
-    robot.ServoMoveStart()
-    pos = [0,0,0.2,0,0,0]
-    i=0
-    while i < 200:
-        # pos[2] += 0.01
-        time.sleep(0.008)
-        error = robot.ServoCart(mode=1,desc_pos=pos)
-        i += 1
-    robot.ServoMoveEnd()
-    print("ServoCart return ",error)
-
-def splineptp(self):
-    """机器人SplinePTP测试"""
-    robot.SplineStart()
-    error = robot.SplinePTP(joint_pos=JP2,tool=0,user=0)
-    robot.SplineEnd()
-    print("SplinePTP return ", error)
-
-def newsplineptp(self):
-    """机器人NewSplinePTP测试"""
-    robot.NewSplineStart(type=0)
-    pos1 = [-104.846,309.573,336.647,179.681,-0.419,-92.692]
-    pos2 = [-194.846,309.573,336.647,179.681,-0.419,-92.692]
-    pos3 = [ -254.846,259.573,336.647,179.681,-0.419,-92.692]
-    pos4 = [-304.846,259.573,336.647,179.681,-0.419,-92.692]
-    robot.MoveCart(pos1, tool=0, user=0, vel=30)
-    robot.NewSplinePoint(desc_pos=pos1, tool=0, user=0, lastFlag=0)
-    robot.NewSplinePoint(desc_pos=pos2, tool=0, user=0, lastFlag=0)
-    robot.NewSplinePoint(desc_pos=pos3, tool=0, user=0, lastFlag=0)
-    error = robot.NewSplinePoint(desc_pos=pos4, tool=0, user=0, lastFlag=1)
-    robot.NewSplineEnd()
-    print("NewSplinePTP return ", error)
-
-def pointsoffset(self):
-    """机器人PointsOffSet测试"""
-    robot.PointsOffsetEnable(flag=0,offset_pos=[0,0,-100,0,0,0])
-    error = robot.MoveL(DP1, tool=0, user=0)
-    robot.PointsOffsetDisable()
-    print("PointsOffset return ", error)
-
-def jointoverspeedprotect(self):
-    """机器人超速保护测试"""
-    error = robot.MoveL(DP1, tool=0,vel=100, user=0,overSpeedStrategy=3,speedPercent=100)
-    print("超速保护 return ", error)
-
-def movej_test(self):
-    """机器人MoveJ测试"""
-    JP = [28.166,-108.269,-59.859,-87,94.532,-0.7]
-    DP = [612.425,221.199,567.61,-165.032,4.199,-59.99]
-
-    JP1 = [130.124,-99.15,-110.123,-62.577,90.997,-81.748]
-    DP1 = [612.425, 221.199, 567.61, -165.032, 4.199, -59.99]
-    error = robot.MoveJ(joint_pos=JP1,tool=0,user=0, vel=30)
-    print("MoveJ return ",error)
-
-def fvg3_move(self):
-    print(robot.GetActualWObjNum(flag=0))
-    print(robot.GetActualToolFlangePose(flag=0))
-    print(robot.GetActualTCPPose(flag=0))
-    for i in range(0,10):
-        for j in range(0,10):
-            error = robot.MoveL([i*10, j*10, 50, 0, 0, 0],tool=1, user=1, vel=10)
-            robot.WaitMs(250)
-
-
 def close_gripper(arm):
     print("Gripper closing...")
-    # Port 0, Value 100.0
     arm.SetAO(0, 0.0) 
     time.sleep(0.5)
 
 def open_gripper(arm):
     print("Gripper opening...")
-    # Port 0, Value 0.0
     arm.SetAO(0, 20.0) 
     time.sleep(0.5)
 
@@ -171,184 +35,201 @@ def open_gripper(arm):
 # close_gripper(robotleft)
 # close_gripper(robotright)
 
-# --- GRID TO PHYSICAL COORDINATE CONVERTER ---
-def calculate_physical_needle_location(grid_coord, bed_origin):
+# --- Calibration Database ---
+def generate_calibration_map():
+    safe_map = {}
+    
+    # Exact physical coordinates measured with the Right Arm
+    measured_x = [1.81, 11.38, 22.15, 31.40, 41.61, 51.08]
+    measured_y = [0.5, 10.3, 20.3, 30.3, 40.1, 50.2]
+    
+    for x in range(6):
+        for y in range(6):
+            # Maps grid (x,y) directly to your exact measurements
+            safe_map[(x, y)] = (measured_x[x], measured_y[y])
+            
+    return safe_map
+
+PHYSICAL_NEEDLE_MAP = generate_calibration_map()
+
+def get_physical_location(grid_x, grid_y):
+    return PHYSICAL_NEEDLE_MAP.get((grid_x, grid_y), None)
+
+# --- Needle Object ---
+class Needle:
+    def __init__(self, grid_x, grid_y):
+        self.grid_x = grid_x
+        self.grid_y = grid_y
+        
+        # Verify physical location exists in calibration map
+        physical_coords = get_physical_location(self.grid_x, self.grid_y)
+        if physical_coords is None:
+            raise ValueError(f"Needle ({self.grid_x}, {self.grid_y}) is out of bounds.")
+            
+        self.physical_x, self.physical_y = physical_coords
+        
+        # Arm & Stitch Parameters
+        self.left_x_offset = 2.6          
+        self.base_x_L = self.physical_x - self.left_x_offset
+        
+        # Z-heights for the three stages of a stitch
+        self.z_hover = 100.0         
+        self.z_above = 40.0   
+        self.z_push = 25.0      
+        
+        # Safe travel clearances
+        self.clearance_x = 100.0     
+        self.clearance_y = -25.0     
+        
+        self.rot_left = [0.0, 0.0, 0.0] 
+        self.rot_right = [0.0, 0.0, 0.0] 
+        
+        self.offset_dist = 1.6
+        self.diagonal_factor = 0.04
+        self.velocity = 15
+
+    def simple_stitch(self, leftarm, rightarm):
+        # Local variables for concise waypoint lookup table
+        bx, by = self.physical_x, self.physical_y
+        bx_L = self.base_x_L
+        od = self.offset_dist
+        cx, cy = self.clearance_x, self.clearance_y
+        zh, za, zp = self.z_hover, self.z_above, self.z_push
+        df = self.diagonal_factor
+        rl, rr = self.rot_left, self.rot_right
+
+        # Pre-calculated physical waypoints for both arms
+        waypoints = {
+            "hover_west_L": [bx_L - od - cx, by + cy, zh] + rl,
+            "above_west_L": [bx_L - od, by, za] + rl,
+            "push_west_L":  [bx_L - od, by, zp] + rl,
+            "diagonal_retract_west_L": [bx_L - od - (cx * df), by + (cy * df), za] + rl,
+            "above_far_west_L": [bx_L - (od * 8), by, za] + rl,
+            "hover_east_L": [bx_L + od - cx, by + cy, zh] + rl,
+            "above_east_L": [bx_L + od, by, za] + rl,
+            "push_east_L":  [bx_L + od, by, zp] + rl,
+            "diagonal_retract_east_L": [bx_L + od - (cx * df), by + (cy * df), za] + rl,
+            
+            "hover_west_R": [bx - od + cx, by + cy, zh] + rr,
+            "above_west_R": [bx - od, by, za] + rr,
+            "push_west_R":  [bx - od, by, zp] + rr,
+            "diagonal_retract_west_R": [bx - od + (cx * df), by + (cy * df), za] + rr,
+            "hover_east_R": [bx + od + cx, by + cy, zh] + rr,
+            "above_east_R": [bx + od, by, za] + rr,
+            "push_east_R":  [bx + od, by, zp] + rr,
+            "diagonal_retract_east_R": [bx + od + (cx * df), by + (cy * df), za] + rr
+        }
+
+        # Initialize to safe hover positions
+        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=self.velocity)
+        
+        # Step 1: Right arm places new loop on West needle
+        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=self.velocity)
+        open_gripper(rightarm)
+        rightarm.MoveL(waypoints["diagonal_retract_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=self.velocity)
+
+        # Step 2: Left arm grabs East loop and pulls it West
+        leftarm.MoveL(waypoints["hover_east_L"], tool=1, user=1, vel=self.velocity)
+        leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=self.velocity)
+        open_gripper(leftarm)
+        leftarm.MoveL(waypoints["push_east_L"], tool=1, user=1, vel=self.velocity)
+        close_gripper(leftarm)
+        
+        leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=self.velocity)
+        leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=1, vel=self.velocity)
+        open_gripper(leftarm)
+        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=self.velocity)
+
+        # Step 3: Right arm moves West loop to East needle
+        rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=self.velocity)
+        close_gripper(rightarm)
+        
+        rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["above_east_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["push_east_R"], tool=1, user=1, vel=self.velocity)
+        open_gripper(rightarm)
+        
+        rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=1, vel=self.velocity)
+        rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=1, vel=self.velocity)
+
+# --- Execution ---
+needle_bed = {}
+
+# Initialize the 6x6 needle grid
+for x in range(6):
+    for y in range(6):
+        needle_bed[(x, y)] = Needle(grid_x=x, grid_y=y)
+
+target_needle = needle_bed[(0, 0)]
+target_needle.simple_stitch(robotleft, robotright)
+
+
+
+
+
+
+
+
+def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
     """
-    Converts an integer grid coordinate (e.g., (0,0) or (5,5))
-    into the physical [base_x, base_y] coordinates for the robot.
+    Traces the entire 6x6 needle bed to visually verify physical calibration.
+    Moves row by row (Y), gliding across columns (X).
+    Applies the pre-calculated left-arm offset if is_left_arm=True.
     """
-    grid_x, grid_y = grid_coord
-    origin_x, origin_y = bed_origin
+    z_push = 35.0
+    z_hop = z_push + 30.0  # 55.0 mm to clear the sticking out needles
+    rot = [0.0, 0.0, 0.0]
     
-    # The Pitch (Calculated from your 5-needle span)
-    pitch_x = 9.84  # mm between columns (left to right)
-    pitch_y = 10.10 # mm between rows (front to back)
+    arm_name = "Left Arm" if is_left_arm else "Right Arm"
+    print(f">> Starting calibration test path for {arm_name}...")
     
-    # Calculate the real-world coordinates for the specific grid point
-    real_x = origin_x + (grid_x * pitch_x)
-    real_y = origin_y + (grid_y * pitch_y)
-    
-    print(f"Mapped grid {grid_coord} to physical coordinates [{real_x:.2f}, {real_y:.2f}]")
-    return [real_x, real_y]
+    # Helper to quickly grab the correct X-coordinate based on the arm
+    def get_target_x(needle_obj):
+        return needle_obj.base_x_L if is_left_arm else needle_obj.physical_x
 
-
-def simple_stitch(leftarm, rightarm, needle_location):
-    # 1. Coordinate Definitions
-    # The +1.81 offset is gone from here! needle_location is now perfectly calibrated.
-    base_x, base_y = needle_location
+    # Start at a safe hover above (0,0) before beginning the sequence
+    first_needle = needle_bed[(0, 0)]
+    start_x = get_target_x(first_needle)
+    arm.MoveL([start_x, first_needle.physical_y, 100.0] + rot, tool=1, user=1, vel=velocity)
     
-    # --- Arm-Specific X-Axis Offsets ---
-    left_x_offset = 4.3          
-    base_x_L = base_x - left_x_offset  
-    
-    # The three vertical stages
-    z_hover = 100.0         # Safe hovering height 
-    z_above_needle = 40.0   # Spot right above the needle
-    z_push_down = 25.0      # Lowest part to push the yarn down
-    
-    # Safe clearance distances for hover
-    clearance_x = 100.0     
-    clearance_y = -25.0     
-
-    # Rotations
-    rot_left = [0.0, 0.0, 0.0] 
-    rot_right = [0.0, 0.0, 0.0] 
-    
-    # Distance difference between left and right arm
-    offset_dist = 1.6
-    diagonal_factor = 0.04
-    velocity = 15
-
-    
-    # ==========================================
-    # --- WAYPOINT LOOKUP TABLE ---
-    # ==========================================
-    waypoints = {
-        # --- LEFT ARM ---
-        "hover_west_L": [base_x_L - offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
-        "above_west_L": [base_x_L - offset_dist, base_y, z_above_needle] + rot_left,
-        "push_west_L":  [base_x_L - offset_dist, base_y, z_push_down] + rot_left,
-        "diagonal_retract_west_L": [base_x_L - offset_dist - (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_left,
+    for y in range(6):
+        # 1. Move to the start of the row (x=0) at the safe hop height
+        start_needle = needle_bed[(0, y)]
+        target_x = get_target_x(start_needle)
+        arm.MoveL([target_x, start_needle.physical_y, z_hop] + rot, tool=1, user=1, vel=velocity)
         
-        "above_far_west_L": [base_x_L - (offset_dist * 8), base_y, z_above_needle] + rot_left,
+        # 2. Move down 30mm to the glide/push height
+        arm.MoveL([target_x, start_needle.physical_y, z_push] + rot, tool=1, user=1, vel=velocity)
         
-        "hover_east_L": [base_x_L + offset_dist - clearance_x, base_y + clearance_y, z_hover] + rot_left,
-        "above_east_L": [base_x_L + offset_dist, base_y, z_above_needle] + rot_left,
-        "push_east_L":  [base_x_L + offset_dist, base_y, z_push_down] + rot_left,
-        "diagonal_retract_east_L": [base_x_L + offset_dist - (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_left,
-        
-        # --- RIGHT ARM ---
-        "hover_west_R": [base_x - offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
-        "above_west_R": [base_x - offset_dist, base_y, z_above_needle] + rot_right,
-        "push_west_R":  [base_x - offset_dist, base_y, z_push_down] + rot_right,
-        "diagonal_retract_west_R": [base_x - offset_dist + (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_right,
-        
-        "hover_east_R": [base_x + offset_dist + clearance_x, base_y + clearance_y, z_hover] + rot_right,
-        "above_east_R": [base_x + offset_dist, base_y, z_above_needle] + rot_right,
-        "push_east_R":  [base_x + offset_dist, base_y, z_push_down] + rot_right,
-        "diagonal_retract_east_R": [base_x + offset_dist + (clearance_x * diagonal_factor), base_y + (clearance_y * diagonal_factor), z_above_needle] + rot_right
-    }
+        # 3. Glide through all X values in the current row
+        for x in range(6):
+            needle = needle_bed[(x, y)]
+            target_x = get_target_x(needle)
+            arm.MoveL([target_x, needle.physical_y, z_push] + rot, tool=1, user=1, vel=velocity)
+            
+            # Brief pause at each needle so you can visually verify alignment
+            time.sleep(0.5)  
+            
+        # 4. End of the row (x=5), move straight up 30mm to clear the needles
+        end_needle = needle_bed[(5, y)]
+        target_x = get_target_x(end_needle)
+        arm.MoveL([target_x, end_needle.physical_y, z_hop] + rot, tool=1, user=1, vel=velocity)
 
-    # Moving both arms to their respective hover positions
-    print("Moving Left Arm to West hover...")
-    leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
-    print("Moving Right Arm to West hover...")
-    rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
-    
-    # ==========================================
-    # --- STEP 1: Right arm puts new loop on West
-    # ==========================================
-    print("Right Arm: Approaching above needle...")
-    rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Pushing down to place loop...")
-    rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=velocity)
+    print(f">> Test path complete for {arm_name}. Returning to safe hover.")
+    arm.MoveL([start_x, first_needle.physical_y, 100.0] + rot, tool=1, user=1, vel=velocity)
 
-    print("Right Arm: Releasing loop...")
-    open_gripper(rightarm)
-    
-    print("Right Arm: Retracting diagonally at first...")
-    rightarm.MoveL(waypoints["diagonal_retract_west_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Moving to safe hover...")
-    rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
-
-    # ==========================================
-    # --- STEP 2: Left arm grabs East and pulls West
-    # ==========================================
-    print("Left Arm: Moving to East hover...")
-    leftarm.MoveL(waypoints["hover_east_L"], tool=1, user=1, vel=velocity)
-    
-    print("Left Arm: Approaching above East needle...")
-    leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=velocity)
-    
-    print("Left Arm: Opening gripper...")
-    open_gripper(leftarm)
-
-    print("Left Arm: Pushing down to grab East yarn...")
-    leftarm.MoveL(waypoints["push_east_L"], tool=1, user=1, vel=velocity)
-    
-    print("Left Arm: Closing gripper...")
-    close_gripper(leftarm)
-    
-    print("Left Arm: Lifting yarn straight up...")
-    leftarm.MoveL(waypoints["above_east_L"], tool=1, user=1, vel=velocity)
-    
-    print("Left Arm: Pulling yarn far West (twice the offset)...")
-    leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=1, vel=velocity)
-
-    # ==========================================
-    # --- STEP 3: Right arm picks up West, drops East
-    # ==========================================
-    print("Right Arm: Moving to West hover...")
-    rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Approaching above West needle...")
-    rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Pushing down to pick up West yarn...")
-    rightarm.MoveL(waypoints["push_west_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Closing gripper...")
-    close_gripper(rightarm)
-    
-    print("Right Arm: Lifting yarn above needle for transit...")
-    rightarm.MoveL(waypoints["above_west_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Moving yarn to above East needle...")
-    rightarm.MoveL(waypoints["above_east_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Pushing down to drop yarn in East...")
-    rightarm.MoveL(waypoints["push_east_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Dropping yarn...")
-    open_gripper(rightarm)
-    
-    print("Right Arm: Retracting diagonally at first...")
-    rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=1, vel=velocity)
-    
-    print("Right Arm: Moving to safe hover...")
-    rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=1, vel=velocity)
-
-    # Left arm drops yarn and return to position
-    print("Left Arm: Dropping yarn...")
-    open_gripper(leftarm)
-
-    print("Left Arm: Moving to safe hover...")
-    leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=1, vel=velocity)
 
 # ==========================================
 # --- EXECUTION ---
 # ==========================================
 
-# 1. Define the physical location of needle (0,0).
-current_bed_origin = [1.81, -0.50]
+# Test Right Arm (Default)
+test_calibration_path(robotright, needle_bed, is_left_arm=False)
 
-# 2. Define which needle you want to interact with on your grid
-target_grid_needle = (0, 0)
-
-# 3. Convert grid location to the robot's physical X/Y millimeter coordinates
-physical_location = calculate_physical_needle_location(target_grid_needle, current_bed_origin)
-
-# 4. Input physical location
-simple_stitch(robotleft, robotright, physical_location)
+# Test Left Arm (Applies the 2.6mm offset)
+test_calibration_path(robotleft, needle_bed, is_left_arm=True)
