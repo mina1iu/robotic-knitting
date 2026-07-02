@@ -1,6 +1,7 @@
 # from example.servo import joint_pos
 from fairino import Robot
 import time
+
 # A connection is established with the robot controller. A successful connection returns a robot object
 robotleft = Robot.RPC('192.168.0.51')
 robotright = Robot.RPC('192.168.0.52')
@@ -19,7 +20,6 @@ DP3 = [102.939,-378.069,613.165,176.687,1.217,86.329]
 
 desc = [0,0,0,0,0,0]
 
-
 def close_gripper(arm):
     print("Gripper closing...")
     arm.SetAO(0, 0.0) 
@@ -27,7 +27,7 @@ def close_gripper(arm):
 
 def open_gripper(arm):
     print("Gripper opening...")
-    arm.SetAO(0, 20.0) 
+    arm.SetAO(0, 15.0) 
     time.sleep(0.5)
 
 # open_gripper(robotleft)
@@ -75,17 +75,19 @@ class Needle:
         # Z-heights for the three stages of a stitch
         self.z_hover = 100.0         
         self.z_above = 40.0   
-        self.z_push = 25.0      
+        self.z_push = 26.0      
         
         # Safe travel clearances
-        self.clearance_x = 100.0     
-        self.clearance_y = -25.0     
+        self.clearance_x = 50.0     
+        
+        # Independent diagonal retraction amounts (Y set to 0)
+        self.diag_retract_x = 1.5
+        self.diag_retract_y = 0.0
         
         self.rot_left = [0.0, 0.0, 0.0] 
         self.rot_right = [0.0, 0.0, 0.0] 
         
         self.offset_dist = 1.6
-        self.diagonal_factor = 0.04
         self.velocity = 15
 
     def simple_stitch(self, leftarm, rightarm):
@@ -93,36 +95,42 @@ class Needle:
         bx, by = self.physical_x, self.physical_y
         bx_L = self.base_x_L
         od = self.offset_dist
-        cx, cy = self.clearance_x, self.clearance_y
+        cx = self.clearance_x
         zh, za, zp = self.z_hover, self.z_above, self.z_push
-        df = self.diagonal_factor
+        dx, dy = self.diag_retract_x, self.diag_retract_y
         rl, rr = self.rot_left, self.rot_right
 
         # Pre-calculated physical waypoints for both arms
         waypoints = {
-            "hover_west_L": [bx_L - od - cx, by + cy, zh] + rl,
+            "hover_west_L": [bx_L - od - cx, by, zh] + rl,
             "above_west_L": [bx_L - od, by, za] + rl,
             "push_west_L":  [bx_L - od, by, zp] + rl,
-            "diagonal_retract_west_L": [bx_L - od - (cx * df), by + (cy * df), za] + rl,
+            "diagonal_retract_west_L": [bx_L - od - dx, by + dy, za] + rl,
             "above_far_west_L": [bx_L - (od * 8), by, za] + rl,
-            "hover_east_L": [bx_L + od - cx, by + cy, zh] + rl,
+            "hover_east_L": [bx_L + od - cx, by, zh] + rl,
             "above_east_L": [bx_L + od, by, za] + rl,
             "push_east_L":  [bx_L + od, by, zp] + rl,
-            "diagonal_retract_east_L": [bx_L + od - (cx * df), by + (cy * df), za] + rl,
+            "diagonal_retract_east_L": [bx_L + od - dx, by + dy, za] + rl,
             
-            "hover_west_R": [bx - od + cx, by + cy, zh] + rr,
+            "hover_west_R": [bx - od + cx, by, zh] + rr,
             "above_west_R": [bx - od, by, za] + rr,
             "push_west_R":  [bx - od, by, zp] + rr,
-            "diagonal_retract_west_R": [bx - od + (cx * df), by + (cy * df), za] + rr,
-            "hover_east_R": [bx + od + cx, by + cy, zh] + rr,
+            "diagonal_retract_west_R": [bx - od + dx, by + dy, za] + rr,
+            "hover_east_R": [bx + od + cx, by, zh] + rr,
             "above_east_R": [bx + od, by, za] + rr,
             "push_east_R":  [bx + od, by, zp] + rr,
-            "diagonal_retract_east_R": [bx + od + (cx * df), by + (cy * df), za] + rr
+            "diagonal_retract_east_R": [bx + od + dx, by + dy, za] + rr
         }
 
         # Initialize to safe hover positions
         leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
         rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=2, vel=self.velocity)
+
+        # manually adding yarn
+        open_gripper(rightarm)
+        close_gripper(rightarm)
+        time.sleep(1)
+
         
         # Step 1: Right arm places new loop on West needle
         rightarm.MoveL(waypoints["above_west_R"], tool=1, user=2, vel=self.velocity)
@@ -140,8 +148,6 @@ class Needle:
         
         leftarm.MoveL(waypoints["above_east_L"], tool=1, user=2, vel=self.velocity)
         leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=2, vel=self.velocity)
-        open_gripper(leftarm)
-        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
 
         # Step 3: Right arm moves West loop to East needle
         rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=2, vel=self.velocity)
@@ -157,6 +163,9 @@ class Needle:
         rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=2, vel=self.velocity)
         rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=2, vel=self.velocity)
 
+        open_gripper(leftarm)
+        leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
+
 # --- Execution ---
 needle_bed = {}
 
@@ -166,10 +175,7 @@ for x in range(6):
         needle_bed[(x, y)] = Needle(grid_x=x, grid_y=y)
 
 target_needle = needle_bed[(0, 0)]
-#target_needle.simple_stitch(robotleft, robotright)
-
-
-
+target_needle.simple_stitch(robotleft, robotright)
 
 
 def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
@@ -229,8 +235,8 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
 # --- EXECUTION ---
 # ==========================================
 
-# Test Right Arm (Default)
-test_calibration_path(robotright, needle_bed, is_left_arm=False)
+# # Test Right Arm (Default)
+# test_calibration_path(robotright, needle_bed, is_left_arm=False)
 
-# Test Left Arm (Applies the 2.6mm offset)
-test_calibration_path(robotleft, needle_bed, is_left_arm=True)
+# # Test Left Arm (Applies the 2.6mm offset)
+# test_calibration_path(robotleft, needle_bed, is_left_arm=True)
