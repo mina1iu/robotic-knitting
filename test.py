@@ -30,8 +30,19 @@ def open_gripper(arm):
     arm.SetAO(0, 15.0) 
     time.sleep(0.5)
 
+# --- NEW YARN DISTRIBUTOR SWING FUNCTIONS ---
+def close_yarn_swing(arm):
+    print("Yarn swing closing (Holding yarn)...")
+    arm.SetAO(0, 0.0) 
+    time.sleep(0.5)
 
-# --- Calibration Database ---
+def open_yarn_swing(arm):
+    print("Yarn swing opening (Releasing yarn)...")
+    arm.SetAO(0, 15.0) 
+    time.sleep(0.5)
+
+
+# --- Calibration Databases ---
 def generate_calibration_map():
     safe_map = {}
     
@@ -50,6 +61,17 @@ PHYSICAL_NEEDLE_MAP = generate_calibration_map()
 def get_physical_location(grid_x, grid_y):
     return PHYSICAL_NEEDLE_MAP.get((grid_x, grid_y), None)
 
+def get_yarn_physical_location(grid_x, grid_y):
+    """
+    Independent mapping for the Yarn Distributor (3rd Arm).
+    Currently isolated to perfect the 1,1 stitch location.
+    """
+    yarn_map = {
+        (1, 1): (12.6, 19.9)
+    }
+    # Fallback to standard mapping if not defined so the script doesn't crash on full-bed loops
+    return yarn_map.get((grid_x, grid_y), get_physical_location(grid_x, grid_y))
+
 
 # --- Needle Object ---
 class Needle:
@@ -57,25 +79,34 @@ class Needle:
         self.grid_x = grid_x
         self.grid_y = grid_y
         
+        # 1. Base Physical Coordinates (For Left/Right Grippers)
         physical_coords = get_physical_location(self.grid_x, self.grid_y)
         if physical_coords is None:
             raise ValueError(f"Needle ({self.grid_x}, {self.grid_y}) is out of bounds.")
-            
         self.physical_x, self.physical_y = physical_coords
+        
+        # 2. Yarn Physical Coordinates (For Distributor)
+        yarn_coords = get_yarn_physical_location(self.grid_x, self.grid_y)
+        self.yarn_physical_x, self.yarn_physical_y = yarn_coords
         
         # Arm Offsets
         self.left_x_offset = 2.6          
         self.base_x_L = self.physical_x - self.left_x_offset
         
-        # Third Arm (Yarn Distributor) Offset
-        self.yarn_x_offset = 30.0
-        self.base_x_Y = self.physical_x + self.yarn_x_offset
+        # --- YARN DISTRIBUTOR DIRECTIONAL OFFSET (NORTH/SOUTH) ---
+        # 1 = South to North | -1 = North to South
+        self.yarn_direction = 1 
+        
+        # The physical distance to shift the tool along the Y-axis so the gap frames the needle
+        self.yarn_gap_offset_y = 30.0 
+        
+        # Calculates the base coordinates for the yarn arm
+        self.base_x_Y = self.yarn_physical_x 
+        self.base_y_Y = self.yarn_physical_y + (self.yarn_gap_offset_y * self.yarn_direction)
+        # ---------------------------------------------------------
         
         # --- COLLISION AVOIDANCE HOVER OFFSETS ---
-        # Massively increased X clearance so Left stays far left, Right stays far right
         self.clearance_x = 150.0     
-        
-        # Pulls the yarn arm 100mm deeply back on the Y-axis to wait safely out of the way
         self.yarn_y_hover_offset = 150.0 
         
         # Z-heights for the stages of a stitch
@@ -87,6 +118,7 @@ class Needle:
         self.diag_retract_x = 1.5
         self.diag_retract_y = 0.0
         
+        # Ensures rotation is all 0s for the yarn arm at 1,1
         self.rot_left = [0.0, 0.0, 0.0] 
         self.rot_right = [0.0, 0.0, 0.0] 
         self.rot_yarn = [0.0, 0.0, 0.0]
@@ -98,7 +130,7 @@ class Needle:
         # Local variables for concise waypoint lookup table
         bx, by = self.physical_x, self.physical_y
         bx_L = self.base_x_L
-        bx_Y = self.base_x_Y
+        bx_Y, by_Y = self.base_x_Y, self.base_y_Y
         yyh = self.yarn_y_hover_offset
         od = self.offset_dist
         cx = self.clearance_x
@@ -108,13 +140,13 @@ class Needle:
 
         # Pre-calculated physical waypoints for all three arms
         waypoints = {
-            # Yarn Distributor Waypoints (Hover is pushed 300mm back on Y)
-            "hover_yarn":  [bx_Y, by + yyh, zh] + ry,
-            "above_yarn":  [bx_Y, by, za] + ry,
-            "push_yarn":   [bx_Y, by, zp] + ry,
-            "adjust_yarn": [bx_Y + 15.0, by, zp] + ry, 
+            # Yarn Distributor Waypoints 
+            "hover_yarn":  [bx_Y, by_Y + yyh, zh] + ry,
+            "above_yarn":  [bx_Y, by_Y, za] + ry,
+            "push_yarn":   [bx_Y, by_Y, zp] + ry,
+            "adjust_yarn": [bx_Y + 15.0, by_Y, zp] + ry, # Pulls tension along X-axis
             
-            # Left Arm Waypoints (Pushed 150mm Left on X during hover)
+            # Left Arm Waypoints 
             "hover_west_L": [bx_L - od - cx, by, zh] + rl,
             "above_west_L": [bx_L - od, by, za] + rl,
             "push_west_L":  [bx_L - od, by, zp] + rl,
@@ -125,7 +157,7 @@ class Needle:
             "push_east_L":  [bx_L + od, by, zp] + rl,
             "diagonal_retract_east_L": [bx_L + od - dx, by + dy, za] + rl,
             
-            # Right Arm Waypoints (Pushed 150mm Right on X during hover)
+            # Right Arm Waypoints 
             "hover_west_R": [bx - od + cx, by, zh] + rr,
             "above_west_R": [bx - od, by, za] + rr,
             "push_west_R":  [bx - od, by, zp] + rr,
@@ -142,28 +174,22 @@ class Needle:
         leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
         rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=2, vel=self.velocity)
 
-        # --- YARN DISTRIBUTOR SEQUENCE ---
-        print(">> Yarn Arm: Moving in...")
+        # --- YARN DISTRIBUTOR SEQUENCE (MOVE IN & HOLD) ---
+        print(">> Yarn Arm: Moving in to position...")
         yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
         yarnarm.MoveL(waypoints["push_yarn"], tool=1, user=2, vel=self.velocity)
         
-        # [IMAGINARY STEP] Open pincher, lay yarn, close pincher
-        # open_gripper(yarnarm)
-        # close_gripper(yarnarm)
-        # time.sleep(1)
+        open_yarn_swing(yarnarm)
+        close_yarn_swing(yarnarm)
         
+        print(">> Yarn Arm: Adjusting length and holding...")
         yarnarm.MoveL(waypoints["adjust_yarn"], tool=1, user=2, vel=self.velocity)
-        
-        # [IMAGINARY STEP] Release yarn to the needle
-        # open_gripper(yarnarm)
-        
-        print(">> Yarn Arm: Retracting to safe hover...")
-        yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
-        yarnarm.MoveL(waypoints["hover_yarn"], tool=1, user=2, vel=self.velocity)
-        # ---------------------------------
+        # Note: The yarn distributor now WAITS here while grippers work
+        # -------------------------------------------------
 
         
-        # Step 1: Right arm works while Left is safely parked 150mm away
+        # --- GRIPPER STITCHING SEQUENCE ---
+        # Step 1: Right arm works while Left is safely parked
         print(">> Right Arm: Initiating Step 1...")
         rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=2, vel=self.velocity)
         rightarm.MoveL(waypoints["above_west_R"], tool=1, user=2, vel=self.velocity)
@@ -172,7 +198,7 @@ class Needle:
         rightarm.MoveL(waypoints["diagonal_retract_west_R"], tool=1, user=2, vel=self.velocity)
         rightarm.MoveL(waypoints["hover_west_R"], tool=1, user=2, vel=self.velocity)
 
-        # Step 2: Left arm works while Right is safely parked 150mm away
+        # Step 2: Left arm works while Right is safely parked
         print(">> Left Arm: Initiating Step 2...")
         leftarm.MoveL(waypoints["hover_east_L"], tool=1, user=2, vel=self.velocity)
         leftarm.MoveL(waypoints["above_east_L"], tool=1, user=2, vel=self.velocity)
@@ -182,7 +208,6 @@ class Needle:
         
         leftarm.MoveL(waypoints["above_east_L"], tool=1, user=2, vel=self.velocity)
         leftarm.MoveL(waypoints["above_far_west_L"], tool=1, user=2, vel=self.velocity)
-        # Return Left Arm to deep safe hover
         leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
 
         # Step 3: Right arm works while Left is safely parked
@@ -197,8 +222,15 @@ class Needle:
         open_gripper(rightarm)
         
         rightarm.MoveL(waypoints["diagonal_retract_east_R"], tool=1, user=2, vel=self.velocity)
-        # Return Right Arm to deep safe hover
         rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=2, vel=self.velocity)
+        # -------------------------------------------------
+
+        # --- YARN DISTRIBUTOR SEQUENCE (RELEASE & RETRACT) ---
+        print(">> Yarn Arm: Stitch complete. Releasing and returning to hover...")
+        open_yarn_swing(yarnarm)
+        yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
+        yarnarm.MoveL(waypoints["hover_yarn"], tool=1, user=2, vel=self.velocity)
+
 
 # --- Execution ---
 needle_bed = {}
@@ -208,68 +240,10 @@ for x in range(6):
     for y in range(6):
         needle_bed[(x, y)] = Needle(grid_x=x, grid_y=y)
 
-target_needle = needle_bed[(0, 0)]
-#target_needle.simple_stitch(robotleft, robotright)
+print("\n====================================")
+print("--- Initiating Single Stitch at Needle (1, 1) ---")
+print("====================================")
 
-
-def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
-    """
-    Traces the entire 6x6 needle bed to visually verify physical calibration.
-    Moves row by row (Y), gliding across columns (X).
-    Applies the pre-calculated left-arm offset if is_left_arm=True.
-    """
-    z_push = 30.0  # Updated to match your Needle class push depth
-    z_hop = z_push + 30.0  
-    rot = [0.0, 0.0, 0.0]
-    
-    arm_name = "Left Arm" if is_left_arm else "Right Arm"
-    print(f"\n>> Starting calibration test path for {arm_name}...")
-    
-    # Helper to quickly grab the correct X-coordinate based on the arm
-    def get_target_x(needle_obj):
-        return needle_obj.base_x_L if is_left_arm else needle_obj.physical_x
-
-    # 1. Approach safely using Joint Move to avoid straight-line errors
-    print(">> Moving to safe home position...")
-    safe_hover_joints = [0, 0, 75, 0, 0, 0]
-    arm.MoveL(safe_hover_joints, tool=1, user=2, vel=velocity)
-    
-    # 2. Traverse the Grid
-    for y in range(6):
-        start_needle = needle_bed[(0, y)]
-        target_x = get_target_x(start_needle)
-        
-        # Hop to start of row
-        arm.MoveL([target_x, start_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
-        arm.MoveL([target_x, start_needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
-        
-        # Glide across X
-        for x in range(6):
-            needle = needle_bed[(x, y)]
-            target_x = get_target_x(needle)
-            arm.MoveL([target_x, needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
-            
-            # Brief pause at each needle so you can visually verify alignment
-            time.sleep(0.3)  
-            
-        # Hop up at end of row
-        end_needle = needle_bed[(5, y)]
-        target_x = get_target_x(end_needle)
-        arm.MoveL([target_x, end_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
-
-    print(f">> Test path complete for {arm_name}. Moving to safe park position.")
-    # 3. Retreat safely using Joint Move
-    arm.MoveL(safe_hover_joints, tool=1, user=2, vel=velocity)
-# ==========================================
-# --- EXECUTION ---
-# ==========================================
-
-# # Test Right Arm (Default)
-robotright.MoveL([.9, -.4, 50] + [0.0, 0.0, 0.0], tool=1, user=2, vel=10)
-test_calibration_path(robotright, needle_bed, is_left_arm=False)
-
-# # Test Left Arm (Applies the 2.6mm offset)
-# test_calibration_path(robotleft, needle_bed, is_left_arm=True)
-
-# Pass all three arms to the stitch function
-#target_needle.simple_stitch(robotleft, robotright, robotyarn)
+# Execute only the single stitch at (1, 1)
+target_needle = needle_bed[(1, 1)]
+target_needle.simple_stitch(robotleft, robotright, robotyarn)
