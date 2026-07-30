@@ -36,8 +36,8 @@ def generate_calibration_map():
     safe_map = {}
     
     # Exact physical coordinates measured with the Right Arm
-    measured_x = [1.81, 11.38, 22.15, 31.40, 41.61, 51.08]
-    measured_y = [0.5, 10.3, 20.3, 30.3, 40.1, 50.2]
+    measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
+    measured_y = [-0.4, 14.2, 29.7, 44.3, 60, 74.8]
     
     for x in range(6):
         for y in range(6):
@@ -200,7 +200,6 @@ class Needle:
         # Return Right Arm to deep safe hover
         rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=2, vel=self.velocity)
 
-
 # --- Execution ---
 needle_bed = {}
 
@@ -210,6 +209,67 @@ for x in range(6):
         needle_bed[(x, y)] = Needle(grid_x=x, grid_y=y)
 
 target_needle = needle_bed[(0, 0)]
+#target_needle.simple_stitch(robotleft, robotright)
+
+
+def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
+    """
+    Traces the entire 6x6 needle bed to visually verify physical calibration.
+    Moves row by row (Y), gliding across columns (X).
+    Applies the pre-calculated left-arm offset if is_left_arm=True.
+    """
+    z_push = 30.0  # Updated to match your Needle class push depth
+    z_hop = z_push + 30.0  
+    rot = [0.0, 0.0, 0.0]
+    
+    arm_name = "Left Arm" if is_left_arm else "Right Arm"
+    print(f"\n>> Starting calibration test path for {arm_name}...")
+    
+    # Helper to quickly grab the correct X-coordinate based on the arm
+    def get_target_x(needle_obj):
+        return needle_obj.base_x_L if is_left_arm else needle_obj.physical_x
+
+    # 1. Approach safely using Joint Move to avoid straight-line errors
+    print(">> Moving to safe home position...")
+    safe_hover_joints = [0, 0, 75, 0, 0, 0]
+    arm.MoveL(safe_hover_joints, tool=1, user=2, vel=velocity)
+    
+    # 2. Traverse the Grid
+    for y in range(6):
+        start_needle = needle_bed[(0, y)]
+        target_x = get_target_x(start_needle)
+        
+        # Hop to start of row
+        arm.MoveL([target_x, start_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
+        arm.MoveL([target_x, start_needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
+        
+        # Glide across X
+        for x in range(6):
+            needle = needle_bed[(x, y)]
+            target_x = get_target_x(needle)
+            arm.MoveL([target_x, needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
+            
+            # Brief pause at each needle so you can visually verify alignment
+            time.sleep(0.3)  
+            
+        # Hop up at end of row
+        end_needle = needle_bed[(5, y)]
+        target_x = get_target_x(end_needle)
+        arm.MoveL([target_x, end_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
+
+    print(f">> Test path complete for {arm_name}. Moving to safe park position.")
+    # 3. Retreat safely using Joint Move
+    arm.MoveL(safe_hover_joints, tool=1, user=2, vel=velocity)
+# ==========================================
+# --- EXECUTION ---
+# ==========================================
+
+# # Test Right Arm (Default)
+robotright.MoveL([.9, -.4, 50] + [0.0, 0.0, 0.0], tool=1, user=2, vel=10)
+test_calibration_path(robotright, needle_bed, is_left_arm=False)
+
+# # Test Left Arm (Applies the 2.6mm offset)
+# test_calibration_path(robotleft, needle_bed, is_left_arm=True)
 
 # Pass all three arms to the stitch function
-target_needle.simple_stitch(robotleft, robotright, robotyarn)
+#target_needle.simple_stitch(robotleft, robotright, robotyarn)
