@@ -13,7 +13,7 @@ def close_gripper(arm):
 
 def open_gripper(arm):
     print("Gripper opening...")
-    arm.SetAO(0, 15.0) 
+    arm.SetAO(0, 13.0) 
     time.sleep(0.5)
 
 # --- YARN DISTRIBUTOR SWING FUNCTIONS ---
@@ -78,7 +78,7 @@ class Needle:
         self.yarn_physical_x, self.yarn_physical_y = yarn_coords
         
         # Arm Offsets
-        self.left_x_offset = 3          
+        self.left_x_offset = 3.2          
         self.base_x_L = self.physical_x - self.left_x_offset
         
         # --- YARN DISTRIBUTOR DIRECTIONAL OFFSET (NORTH/SOUTH) ---
@@ -135,7 +135,7 @@ class Needle:
             "above_west_L": [bx_L - od, by, za] + rl,
             "push_west_L":  [bx_L - od, by, zp] + rl,
             "diagonal_retract_west_L": [bx_L - od - dx, by + dy, za] + rl,
-            "hold_close_west_L": [bx_L - (od*10), by, za] + rl,  # <--- New close hold position
+            "hold_close_west_L": [bx_L - (od*8.5), by, za] + rl,  # <--- New close hold position
             "hover_east_L": [bx_L + od - cx, by, zh] + rl,
             "above_east_L": [bx_L + od, by, za] + rl,
             "push_east_L":  [bx_L + od, by, zp] + rl,
@@ -154,25 +154,25 @@ class Needle:
 
         # 0. Initialize all to safe parking corners
         print(">> Parking all arms in safe hovers...")
-        yarnarm.MoveL(waypoints["hover_yarn"], tool=1, user=2, vel=self.velocity)
+        #yarnarm.MoveL(waypoints["hover_yarn"], tool=1, user=2, vel=self.velocity)
         leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
         rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=2, vel=self.velocity)
 
-        # # --- YARN DISTRIBUTOR SEQUENCE (MOVE IN & HOLD) ---
-        # print(">> Yarn Arm: Moving in to position...")
-        # yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
+        # --- YARN DISTRIBUTOR SEQUENCE (MOVE IN & HOLD) ---
+        print(">> Yarn Arm: Moving in to position...")
+        yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
         
-        # open_yarn_swing(yarnarm)
+        open_yarn_swing(yarnarm)
         
-        # # ==========================================================
-        # # BREAKPOINT: YARN PLACING
-        # # (Insert manual pause, wait command, or debug input here)
-        # # ==========================================================
+        # ==========================================================
+        # BREAKPOINT: YARN PLACING
+        # (Insert manual pause, wait command, or debug input here)
+        # ==========================================================
         
-        # close_yarn_swing(yarnarm)
-        # yarnarm.MoveL(waypoints["push_yarn"], tool=1, user=2, vel=self.velocity)
+        close_yarn_swing(yarnarm)
+        yarnarm.MoveL(waypoints["push_yarn"], tool=1, user=2, vel=self.velocity)
         
-        # print(">> Yarn Arm: Holding position...")
+        print(">> Yarn Arm: Holding position...")
         
         # --- GRIPPER STITCHING SEQUENCE ---
         
