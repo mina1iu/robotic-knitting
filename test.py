@@ -34,7 +34,7 @@ def generate_calibration_map():
     
     # Exact physical coordinates measured with the Right Arm
     measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
-    measured_y = [-0.4, 14.2, 29.7, 44.3, 60, 74.8]
+    measured_y = [-0.4, 14.6, 29.7, 44.3, 60, 74.8]
     
     for x in range(6):
         for y in range(6):
@@ -52,8 +52,10 @@ def get_yarn_physical_location(grid_x, grid_y):
     Independent mapping for the Yarn Distributor (3rd Arm).
     Currently isolated to perfect the 1,1 stitch location.
     """
+
+    # hard-coded mapping for the yarn distributor at (1, 1), into west needle position
     yarn_map = {
-        (1, 1): (12.6, 19.9)
+        (1, 1): (11.9, 19.95)
     }
     # Fallback to standard mapping if not defined
     return yarn_map.get((grid_x, grid_y), get_physical_location(grid_x, grid_y))
@@ -76,7 +78,7 @@ class Needle:
         self.yarn_physical_x, self.yarn_physical_y = yarn_coords
         
         # Arm Offsets
-        self.left_x_offset = 2.6          
+        self.left_x_offset = 3          
         self.base_x_L = self.physical_x - self.left_x_offset
         
         # --- YARN DISTRIBUTOR DIRECTIONAL OFFSET (NORTH/SOUTH) ---
@@ -92,12 +94,12 @@ class Needle:
         
         # --- COLLISION AVOIDANCE HOVER OFFSETS ---
         self.clearance_x = 75.0      # Lowered to keep Left arm in reachable workspace
-        self.yarn_y_hover_offset = 150.0 
+        self.yarn_y_hover_offset = 50.0 
         
         # Z-heights for the stages of a stitch
-        self.z_hover = 100.0         
-        self.z_above = 40.0   
-        self.z_push = 26.0      
+        self.z_hover = 70.0         
+        self.z_above = 41.0   
+        self.z_push = 26.0 
         
         # Independent diagonal retraction amounts (Y set to 0)
         self.diag_retract_x = 1.5
@@ -107,7 +109,7 @@ class Needle:
         self.rot_right = [0.0, 0.0, 0.0] 
         self.rot_yarn = [0.0, 0.0, 0.0]
         
-        self.offset_dist = 1.6
+        self.offset_dist = 1.3
         self.velocity = 15
 
     def simple_stitch(self, leftarm, rightarm, yarnarm):
@@ -126,7 +128,7 @@ class Needle:
             # Yarn Distributor Waypoints 
             "hover_yarn":  [bx_Y, by_Y + yyh, zh] + ry,
             "above_yarn":  [bx_Y, by_Y, za] + ry,
-            "push_yarn":   [bx_Y, by_Y, zp] + ry,
+            "push_yarn":   [bx_Y, by_Y, zp + 5] + ry,
             
             # Left Arm Waypoints 
             "hover_west_L": [bx_L - od - cx, by, zh] + rl,
@@ -156,19 +158,21 @@ class Needle:
         leftarm.MoveL(waypoints["hover_west_L"], tool=1, user=2, vel=self.velocity)
         rightarm.MoveL(waypoints["hover_east_R"], tool=1, user=2, vel=self.velocity)
 
-        # --- YARN DISTRIBUTOR SEQUENCE (MOVE IN & HOLD) ---
-        print(">> Yarn Arm: Moving in to position...")
-        yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
-        yarnarm.MoveL(waypoints["push_yarn"], tool=1, user=2, vel=self.velocity)
+        # # --- YARN DISTRIBUTOR SEQUENCE (MOVE IN & HOLD) ---
+        # print(">> Yarn Arm: Moving in to position...")
+        # yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
         
-        open_yarn_swing(yarnarm)
-        close_yarn_swing(yarnarm)
+        # open_yarn_swing(yarnarm)
         
-        # ==========================================================
-        # BREAKPOINT: YARN PLACING
-        # (Insert manual pause, wait command, or debug input here)
-        # ==========================================================
-        print(">> Yarn Arm: Holding position...")
+        # # ==========================================================
+        # # BREAKPOINT: YARN PLACING
+        # # (Insert manual pause, wait command, or debug input here)
+        # # ==========================================================
+        
+        # close_yarn_swing(yarnarm)
+        # yarnarm.MoveL(waypoints["push_yarn"], tool=1, user=2, vel=self.velocity)
+        
+        # print(">> Yarn Arm: Holding position...")
         
         # --- GRIPPER STITCHING SEQUENCE ---
         
