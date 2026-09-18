@@ -1,0 +1,56 @@
+while(1)
+do
+
+    IwdgTaskHandle()
+    MainLoop()
+    UpDownLoadHandle()
+    SdoRwPara()
+    EndErrClear()
+
+    local BFlag = LuaBreak()
+
+    if(BFlag == 1) then
+        break
+    end
+
+
+    -- Get command from FAIRINO controller
+    Rcmd1, Rcmd2, Rcmd3, Rcmd4 = GetGripCmd()
+
+
+    -- New command received
+    if(Rcmd1 == 1) then
+
+        DelayMs(3)
+
+
+        -- ========================================
+        -- POSITION CONTROL
+        -- Rcmd3 = 0x03
+        -- ========================================
+
+        if(Rcmd3 == 0x03) then
+
+            -- Send:
+            --
+            -- AA 03 [POSITION] 55
+            --
+            -- Example:
+            -- position = 50
+            -- AA 03 32 55
+
+            EndTxGripData(
+                0xAA,
+                0x03,
+                Rcmd4,
+                0x55
+            )
+
+        end
+
+    end
+
+
+    LuaGc()
+
+end
