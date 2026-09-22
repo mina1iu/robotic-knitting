@@ -65,11 +65,11 @@ local function SendAndReceive(T, id)
     T[1] = id
     T[7], T[8] = CrcValue(T[1], T[2], T[3], T[4], T[5], T[6])
     -- as the receive funtion will consume storage, throw away the last result
-    EndRxGripData()
+    -- EndRxGripData()
     EndTxGripData(T[1], T[2], T[3], T[4], T[5], T[6], T[7], T[8])
     DelayMs(RESPONSE_WAIT_MS)
     IwdgTaskHandle()
-    local A, b1, b2, b3, b4, b5, b6, b7, b8 = EndRXGripData()
+    local A, b1, b2, b3, b4, b5, b6, b7, b8 = EndRxGripData()
     local R = {b1, b2, b3, b4, b5, b6, b7, b8}
     lastTransportError = 240
     -- no valid response
@@ -120,9 +120,9 @@ local function ValidPercent(value)
 end
 
 
-While true do
+while true do
     --based on official demo
-    IwdgTaskHome()
+    IwdgTaskHandle()
     MainLoop()
     UpDownLoadHandle()
     SdoRwPara()
@@ -179,7 +179,7 @@ While true do
             -- check the speed 
             ReadRegister(T9, Rcmd2, 100)
 
-        elseif Rcmd==0x0C then
+        elseif Rcmd3==0x0C then
             -- check force, but now the case is alwas 0
             ReadRegister(T10, Rcmd2, 0)
         end
