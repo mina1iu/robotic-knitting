@@ -132,7 +132,7 @@
 from fairino import Robot
 import time
 
-ROBOT_IP = "192.168.0.52"
+ROBOT_IP = "192.168.0.50"
 GRIPPER_ID = 1
 SPEED = 50
 FORCE = 0
@@ -147,14 +147,14 @@ def main():
         robot = Robot.RPC(ROBOT_IP)
         time.sleep(1)
 
-        print("\n本程序不重复初始化舵机。")
-        print("请确认 Arduino 日志中 ready=1、error=0。")
-        print("输入位置百分比 0–100，每次回车执行一条命令。")
-        print("例如：20 → 标称63°，80 → 标称117°。")
-        print("输入 q 退出。\n")
+        print("\nNo Initialization In here")
+        print("Plz comfirm Arduino log has: ready=1、error=0")
+        print("input position percentage 0–100, press enter to excute")
+        print("e.g.: 20 → degree:63°, 80 → degree:117°")
+        print("input q to quit \n")
 
         while True:
-            text = input("目标位置 0–100 / q：").strip()
+            text = input("target position must be: 0-100 / q").strip()
 
             if text.lower() == "q":
                 break
@@ -162,11 +162,11 @@ def main():
             try:
                 position = int(text)
             except ValueError:
-                print("请输入整数，例如 20、50、80。\n")
+                print("please input interger, like 20, 50, 80 \n")
                 continue
 
             if not 0 <= position <= 100:
-                print("位置必须在 0–100 之间。\n")
+                print("position must within 0-100\n")
                 continue
 
             nominal_angle = 45 + position * 90 / 100
@@ -180,13 +180,13 @@ def main():
             start_time = time.monotonic()
 
             ret = robot.MoveGripper(
-                GRIPPER_ID,   # 夹爪编号
-                position,     # 位置百分比
-                SPEED,        # 软件速度百分比
-                FORCE,        # MG90S力占位：0
-                MAX_TIME_MS,  # 最大等待时间，毫秒
-                0,            # 阻塞模式
-                0,            # 普通夹爪类型
+                GRIPPER_ID,   # Graipper ID
+                position,     # Position Percentage
+                SPEED,        # Speed Percent
+                FORCE,        # MG90S Placehold for Force
+                MAX_TIME_MS,  # maxinmun wait time
+                0,            # block mode
+                0,            # gripper type
                 0,            # rotNum
                 0,            # rotVel
                 0             # rotTorque
@@ -202,8 +202,8 @@ def main():
 
             if ret != 0:
                 print(
-                    "移动报错，停止发送后续命令。"
-                    "请保存 Arduino 日志，不要立即 Reset。",
+                    "wrong in movament, do no excute next request"
+                    "Check Arduino log, dont reset first",
                     flush=True
                 )
                 break
@@ -216,8 +216,8 @@ def main():
             )
 
             print(
-                "请观察舵机实际动作；"
-                "反馈为软件位置，不是测得的真实角度。\n"
+                "check the real physical position"
+                "this position feedback is based on software, not the measure angle\n"
             )
 
     except (KeyboardInterrupt, EOFError):
@@ -246,7 +246,7 @@ if __name__ == "__main__":
 # import time
 
 # ROBOT_IP = "192.168.0.52"
-# READ_INTERVAL = 2.0
+# READ_INTERVAL = 5.0
 
 # commands = queue.Queue()
 
@@ -375,6 +375,176 @@ if __name__ == "__main__":
 #             except Exception as e:
 #                 print(f"CloseRPC warning: {e}")
 
+#         print("Program ended.", flush=True)
+
+
+# if __name__ == "__main__":
+#     main()
+
+# """Three sequential MG90S commands for the user's 0921 Lua.
+# Position convention: 0%=30deg, 50%=90deg, 100%=150deg.
+# No background polling, automatic retries, or gripper configuration changes.
+# """
+# from fairino import Robot
+# import time
+
+# ROBOT_IP = "192.168.0.52"
+
+# def unpack_feedback(result, name):
+#     # Accept both SDK return layouts observed in documentation/this project.
+#     if isinstance(result, (tuple, list)) and len(result) == 3:
+#         error, fault, value = result
+#     elif (isinstance(result, (tuple, list)) and len(result) == 2
+#           and isinstance(result[1], (tuple, list)) and len(result[1]) == 2):
+#         error, (fault, value) = result
+#     else:
+#         raise RuntimeError(f"{name}: unexpected return {result!r}")
+#     if error != 0 or fault != 0:
+#         raise RuntimeError(f"{name}: error/fault {result!r}")
+#     return value
+
+# def move_and_read(robot, degrees, percent):
+#     print(f"Send {degrees} degrees = {percent}%", flush=True)
+#     # block=0: wait for the controller's completion response.
+#     ret = robot.MoveGripper(1, percent, 50, 0, 15000, 0, 0, 0, 0, 0)
+#     print("MoveGripper:", repr(ret), flush=True)
+#     if ret != 0:
+#         raise RuntimeError(f"MoveGripper returned {ret!r}; no further motion sent.")
+#     time.sleep(1)
+#     motion = robot.GetGripperMotionDone()
+#     position = robot.GetGripperCurPosition()
+#     print("GetGripperMotionDone:", repr(motion), flush=True)
+#     print("GetGripperCurPosition:", repr(position), flush=True)
+#     finished = unpack_feedback(motion, "GetGripperMotionDone")
+#     reported = unpack_feedback(position, "GetGripperCurPosition")
+#     if finished != 1 or not isinstance(reported, (int, float)) or abs(reported-percent)>1:
+#         raise RuntimeError("Feedback does not match this target; paused test. Save Arduino logs.")
+#     print("Software feedback matches; physical arrival is not measured.\n", flush=True)
+
+# robot = None
+# try:
+#     robot = Robot.RPC(ROBOT_IP)
+#     time.sleep(1)
+#     # Explicit robot-side activation; no ActGripper(...,0), because Lua init writes1.
+#     ret = robot.ActGripper(1, 1)
+#     print("ActGripper:", repr(ret), flush=True)
+#     if ret != 0:
+#         raise RuntimeError(f"ActGripper returned {ret!r}")
+#     time.sleep(2.5)  # ESP32 midpoint initialization estimates1500ms.
+#     move_and_read(robot, 30, 0)
+#     move_and_read(robot, 90, 50)
+#     move_and_read(robot, 150, 100)
+#     print("Three-step test finished.")
+# except (KeyboardInterrupt, EOFError):
+#     print("Stopped by user.")
+# except Exception as exc:
+#     print(f"TEST STOPPED: {exc}", flush=True)
+# finally:
+#     if robot is not None:
+#         try:
+#             robot.CloseRPC()
+#         except Exception as exc:
+#             print(f"CloseRPC: {exc}")
+#     print("RPC closed")
+
+# from fairino import Robot
+# import time
+
+# ROBOT_IP = "192.168.0.52"
+# GRIPPER_ID = 1
+# SPEED = 50
+# FORCE = 0
+# MAX_TIME_MS = 10000
+# READ_INTERVAL = 1.0
+# READ_COUNT = 5
+
+
+# def main():
+#     robot = None
+#     try:
+#         print(f"Connecting to {ROBOT_IP}...", flush=True)
+#         robot = Robot.RPC(ROBOT_IP)
+#         time.sleep(1)
+
+#         print("\nNo automatic initialization.")
+#         print("Confirm Arduino shows ready=1 and error=0.")
+#         print("Enter position 0-100, or q to quit.")
+#         print("20% = nominal 63 deg; 80% = nominal 117 deg.")
+#         print("After each successful call: read raw feedback 5 times.")
+#         print("Software feedback only; physical arrival is NOT verified.\n")
+
+#         while True:
+#             text = input("Position (0-100), or q: ").strip()
+#             if text.lower() == "q":
+#                 break
+#             try:
+#                 position = int(text)
+#             except ValueError:
+#                 print("Please enter an integer, such as 20, 50 or 80.")
+#                 continue
+#             if not 0 <= position <= 100:
+#                 print("Position must be within 0-100.")
+#                 continue
+
+#             nominal_angle = 45 + position * 90 / 100
+#             print(
+#                 f"\nSending position={position}% "
+#                 f"(nominal angle={nominal_angle:.1f} deg)",
+#                 flush=True,
+#             )
+#             start_time = time.monotonic()
+#             ret = robot.MoveGripper(
+#                 GRIPPER_ID,
+#                 position,
+#                 SPEED,
+#                 FORCE,
+#                 MAX_TIME_MS,
+#                 0,  # Blocking mode as documented; measure actual behavior.
+#                 0,  # Gripper type
+#                 0,  # rotNum
+#                 0,  # rotVel
+#                 0,  # rotTorque
+#             )
+#             print(
+#                 f"MoveGripper return: {ret!r}, "
+#                 f"elapsed: {time.monotonic() - start_time:.2f}s",
+#                 flush=True,
+#             )
+#             if ret != 0:
+#                 print("Movement API error. Stopping test; save Arduino logs before resetting.", flush=True)
+#                 break
+
+#             # Sequential calls only. No new movement during these reads.
+#             # Keep raw results: SDK versions may return different tuple layouts.
+#             for i in range(READ_COUNT):
+#                 time.sleep(READ_INTERVAL)
+#                 motion = robot.GetGripperMotionDone()
+#                 print(
+#                     f"[{i + 1}/{READ_COUNT}, +{time.monotonic() - start_time:.2f}s] "
+#                     f"GetGripperMotionDone raw: {motion!r}",
+#                     flush=True,
+#                 )
+#                 feedback = robot.GetGripperCurPosition()
+#                 print(
+#                     f"[{i + 1}/{READ_COUNT}, +{time.monotonic() - start_time:.2f}s] "
+#                     f"GetGripperCurPosition raw: {feedback!r}",
+#                     flush=True,
+#                 )
+
+#             print("Observation finished; this does NOT automatically confirm completion.")
+#             print("If feedback is stale or Arduino is still moving, stop and save logs.\n")
+
+#     except (KeyboardInterrupt, EOFError):
+#         print("\nStopped by user.")
+#     except Exception as e:
+#         print(f"\nERROR: {e}", flush=True)
+#     finally:
+#         if robot is not None:
+#             try:
+#                 robot.CloseRPC()
+#             except Exception as e:
+#                 print(f"CloseRPC warning: {e}")
+#         # Closing RPC does not stop servo PWM or cancel movement.
 #         print("Program ended.", flush=True)
 
 
