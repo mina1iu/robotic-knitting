@@ -67,10 +67,9 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
     def get_target_x(needle_obj):
         return needle_obj.base_x_L if is_left_arm else needle_obj.physical_x
 
-    # 1. Approach safely using Joint Move to avoid straight-line errors
     print(">> Moving to safe home position...")
-    safe_hover_joints = [0, 0, 75, 0, 0, 0]
-    arm.MoveJ(safe_hover_joints, tool=1, user=2, vel=velocity) 
+    safe_hover_coord = [0, 0, 75, 0, 0, 0]
+    arm.MoveL(safe_hover_coord, tool=1, user=2, vel=velocity) 
     
     # 2. Traverse the Grid
     for y in range(6):
@@ -95,7 +94,7 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
 
     print(f">> Test path complete for {arm_name}. Moving to safe park position.")
     # 3. Retreat safely using Joint Move
-    arm.MoveJ(safe_hover_joints, tool=1, user=2, vel=velocity)
+    arm.MoveL(safe_hover_coord, tool=1, user=2, vel=velocity)
 
 
 # ==========================================
@@ -103,7 +102,12 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
 # ==========================================
 
 # Test Right Arm (Default)
-robotright.MoveL([.9, -.4, 50] + [0.0, 0.0, 0.0], tool=1, user=2, vel=10)
+robotright.MoveL(
+    [.9, -.4, 50, 0.0, 0.0, 0.0],
+    tool=1,
+    user=2,
+    vel=5
+)
 test_calibration_path(robotright, needle_bed, is_left_arm=False)
 
 # Test Left Arm (Uncomment to test the Left Arm with the 2.6mm offset)
