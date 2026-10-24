@@ -1,18 +1,12 @@
-from fairino import Robot
 import time
-
-# --- 1. Robot Connections ---
-# Only keeping the two main arms needed for calibration testing
-robotleft  = Robot.RPC('192.168.0.51')
-robotright = Robot.RPC('192.168.0.52')
 
 # --- 2. Calibration Database ---
 def generate_calibration_map():
     safe_map = {}
     
     # Exact physical coordinates measured with the Right Arm
-    measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
-    measured_y = [-0.4, 14.2, 29.7, 44.3, 60, 74.8]
+    measured_x = [-3, 16.246, 31, 46.3, 60.7, 76.1]
+    measured_y = [3.8, 18.7, 34, 49, 63.5, 79]
     
     for x in range(6):
         for y in range(6):
@@ -57,7 +51,7 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
     Moves row by row (Y), gliding across columns (X).
     Applies the pre-calculated left-arm offset if is_left_arm=True.
     """
-    z_push = 30.0  
+    z_push = 36.0  
     z_hop = z_push + 30.0  
     rot = [0.0, 0.0, 0.0]
     
@@ -67,48 +61,54 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
     def get_target_x(needle_obj):
         return needle_obj.base_x_L if is_left_arm else needle_obj.physical_x
 
-    print(">> Moving to safe home position...")
+    def move_to(pose):
+        result = arm.MoveL(pose, tool=1, user=2, vel=velocity, blendR=-1.0)
+        if result != 0:
+            raise RuntimeError(f"{arm_name} MoveL failed at {pose}: {result}")
+
+    print(">> Moving to home position...")
     safe_hover_coord = [0, 0, 75, 0, 0, 0]
-    arm.MoveL(safe_hover_coord, tool=1, user=2, vel=velocity) 
+    move_to(safe_hover_coord)
     
     # 2. Traverse the Grid
     for y in range(6):
         start_needle = needle_bed[(0, y)]
         target_x = get_target_x(start_needle)
         
-        # Hop to start of row
-        arm.MoveL([target_x, start_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
-        arm.MoveL([target_x, start_needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
+        print(f">> Row {y}: (0, {y}) -> (5, {y})")
+        # Travel to X=0 at clearance height, then lower to the first needle.
+        move_to([target_x, start_needle.physical_y, z_hop] + rot)
+        move_to([target_x, start_needle.physical_y, z_push] + rot)
+        time.sleep(0.3)
         
         # Glide across X
-        for x in range(6):
+        for x in range(1, 6):
             needle = needle_bed[(x, y)]
             target_x = get_target_x(needle)
-            arm.MoveL([target_x, needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
+            move_to([target_x, needle.physical_y, z_push] + rot)
             time.sleep(0.3)  
             
         # Hop up at end of row
         end_needle = needle_bed[(5, y)]
         target_x = get_target_x(end_needle)
-        arm.MoveL([target_x, end_needle.physical_y, z_hop] + rot, tool=1, user=2, vel=velocity)
+        move_to([target_x, end_needle.physical_y, z_hop] + rot)
 
     print(f">> Test path complete for {arm_name}. Moving to safe park position.")
-    # 3. Retreat safely using Joint Move
-    arm.MoveL(safe_hover_coord, tool=1, user=2, vel=velocity)
+    # Return home using MoveL, after lifting above the last needle.
+    move_to(safe_hover_coord)
 
 
 # ==========================================
 # --- EXECUTION ---
 # ==========================================
 
-# Test Right Arm (Default)
-robotright.MoveL(
-    [.9, -.4, 50, 0.0, 0.0, 0.0],
-    tool=1,
-    user=2,
-    vel=5
-)
-test_calibration_path(robotright, needle_bed, is_left_arm=False)
+if __name__ == "__main__":
+    from fairino import Robot
 
-# Test Left Arm (Uncomment to test the Left Arm with the 2.6mm offset)
-# test_calibration_path(robotleft, needle_bed, is_left_arm=True)
+    # Connect only to the arm being tested. Importing this file does not move it.
+    robotright = Robot.RPC('192.168.0.52')
+    test_calibration_path(robotright, needle_bed, is_left_arm=False)
+
+    # To test the left arm instead, replace the two lines above with:
+    # robotleft = Robot.RPC('192.168.0.51')
+    # test_calibration_path(robotleft, needle_bed, is_left_arm=True)
