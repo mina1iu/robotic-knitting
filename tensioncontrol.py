@@ -1,201 +1,151 @@
 from fairino import Robot
 import time
-import math
-import threading
-import queue
-import inspect
 import sys
 
-# Independent experiment: .50 DC + .51 backward motion only.
-# .50 approaches its work pose first. No .51 approach/return; no .52/MG90S commands.
-# Any command-line argument is rejected: --dry-run is NOT supported.
-
-# Copy the CURRENT start pose from .51 webpage in tool=1 / user=2.
-# Below is the previously calibrated start; verify it physically before START.
-LEFT_START_POSE = [13.33, 15.12, 38.0, 0.0, 0.0, 0.0]
-YARN_WORK_POSE = [10.95, 22.4, 30.0, 0.0, 0.0, 0.0]
-YARN_APPROACH_VEL = 5.0  # existing percentage-speed approach
+# Only .50. One RPC connection, no worker threads.
 TOOL_ID = 1
 USER_ID = 2
-BACKWARD_AXIS = 0       # 0=X, 1=Y, 2=Z in user=2 frame
-BACKWARD_SIGN = -1     # previous backward direction: negative X
-RETRACT_DISTANCE_MM = 72.0
-EXTRA_PULL_MM = 0.0    # optional small extra distance; not tension feedback
-TARGET_TIME_S = 5.0
-ACCEL_MM_S2 = 100.0
-SPEED_CORRECTION = 1.0 # empirical tuning after measuring actual travel duration
-
-GRIPPER_OPEN = 13.0
-GRIPPER_SETTLE_S = 0.5
+START_POSE = [10.949, 23.425, 54.017, 0.003, -0.001, 0.0]
+LIFT_DISTANCE_MM = 72.0
+velocity = 10.64  # Percentage; calibrate experimentally for approximately 5 seconds.
+MOVE_TIME_S = 5.0  # Target duration, NOT a motion-duration command.
+DC_DELAY_S = 0.5  # From MoveL dispatch, not measured physical motion onset.
+MOTION_TIMEOUT_S = 8.0
+POLL_INTERVAL_S = 0.02
 DC_MOTOR_ID = 2
 SPEED = 50
 FORCE = 0
 MAX_TIME_MS = 10000
-
 robotyarn = None
-robotleft = None
+
+
+def log(message):
+    print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
 def check(result, action):
     if result != 0:
-        raise RuntimeError(f'{action}: return={result}')
+        raise RuntimeError(f'{action} failed: {result}')
 
 
-def open_gripper(arm):
-    check(arm.SetAO(0, GRIPPER_OPEN), 'left gripper open')
-    time.sleep(GRIPPER_SETTLE_S)
+def read_status(result, action):
+    if not isinstance(result, (tuple, list)) or len(result) != 2:
+        raise RuntimeError(f'{action}: unexpected result {result}')
+    check(result[0], action)
+    return result[1]
+
+
+def motion_done():
+    state = read_status(robotyarn.GetRobotMotionDone(), 'GetRobotMotionDone')
+    if state not in (0, 1):
+        raise RuntimeError(f'Invalid motion state: {state}')
+    return state
+
+
+def check_robot_error():
+    codes = read_status(robotyarn.GetRobotErrorCode(), 'GetRobotErrorCode')
+    if not isinstance(codes, (tuple, list)) or len(codes) != 2:
+        raise RuntimeError(f'Unexpected robot error state: {codes}')
+    if any(code != 0 for code in codes):
+        raise RuntimeError(f'Controller fault: {codes}')
 
 
 def dc_command(value):
-    # block=1 allows STOP after 5 s without waiting for firmware's cycle timer.
+    # block=1: nonblocking for both START and STOP.
     check(robotyarn.MoveGripper(
         DC_MOTOR_ID, value, SPEED, FORCE, MAX_TIME_MS, 1, 0, 0, 0, 0
-    ), f'DC command {value}')
-
-
-def stop_left_best_effort():
-    # Separate RPC object: do not share the blocking MoveL transport across threads.
-    stop_robot = None
-    try:
-        stop_robot = Robot.RPC('192.168.0.51')
-        check(stop_robot.StopMotion(), 'left StopMotion')
-    except Exception as exc:
-        print(f'STOP FAILED: {exc}. Use physical emergency stop if needed.', flush=True)
-    finally:
-        if stop_robot is not None:
-            try:
-                stop_robot.CloseRPC()
-            except Exception:
-                pass
+    ), f'DC {value}')
+    log(f'DC {value}: command accepted (not physical-state confirmation)')
 
 
 def main():
-    global robotyarn, robotleft
+    global robotyarn
     if len(sys.argv) != 1:
-        raise SystemExit('No arguments supported. Aborted BEFORE connecting. --dry-run is not implemented.')
-    distance = RETRACT_DISTANCE_MM + EXTRA_PULL_MM
-    if (distance <= 0 or EXTRA_PULL_MM < 0 or TARGET_TIME_S <= 0
-            or ACCEL_MM_S2 <= 0 or SPEED_CORRECTION <= 0
-            or BACKWARD_AXIS not in (0, 1, 2) or BACKWARD_SIGN not in (-1, 1)):
-        raise ValueError('Invalid movement parameters')
-    # Ideal symmetric trapezoid: distance = v*T - v*v/a.
-    discriminant = TARGET_TIME_S ** 2 - 4.0 * distance / ACCEL_MM_S2
-    if discriminant < 0:
-        raise ValueError('Requested time is too short for the configured acceleration')
-    velocity = (2.0 * distance / (TARGET_TIME_S + math.sqrt(discriminant))) * SPEED_CORRECTION
-    target = LEFT_START_POSE.copy()
-    target[BACKWARD_AXIS] += BACKWARD_SIGN * distance
-    print('REAL HARDWARE TEST: .50 will approach its work pose; then DC and .51 run.')
-    print(f'.50 approach target: {YARN_WORK_POSE}; tool={TOOL_ID}, user={USER_ID}')
-    print(f'tool={TOOL_ID}, user={USER_ID}; start={LEFT_START_POSE}; target={target}')
-    print(f'distance={distance:.3f} mm; target duration={TARGET_TIME_S:.3f} s')
-    print(f'average={distance / TARGET_TIME_S:.3f} mm/s; commanded cruise={velocity:.3f} mm/s')
-    print('Timing is approximate; neither yarn tension nor DC rotation count is measured.')
-    print('Manually place .51 at the stated start pose; verify coordinate frames and entire path.')
-    print('13% opening must still provide yarn contact/friction for any pulling force.')
-    if input('Type START only after checking the above (anything else cancels): ').strip() != 'START':
-        print('Cancelled; no connection or motion.')
+        raise SystemExit('No command-line arguments supported. No --dry-run mode.')
+    if not (0 < velocity <= 100 and LIFT_DISTANCE_MM > 0
+            and 0 <= DC_DELAY_S < MOVE_TIME_S < MOTION_TIMEOUT_S):
+        raise ValueError('Invalid settings')
+    target = START_POSE.copy()
+    target[2] = round(target[2] + LIFT_DISTANCE_MM, 6)
+    print('REAL .50 MOTION TEST: one RPC connection')
+    print(f'Tool={TOOL_ID}, Wobj={USER_ID}')
+    print(f'Manually verify current start: {START_POSE}')
+    print(f'Target: {target}; velocity={velocity}%')
+    print('No automatic approach or return. Verify the entire +Z path.')
+    print(f'Target time={MOVE_TIME_S}s; requires speed calibration.')
+    print(f'DC starts ~{DC_DELAY_S}s after MoveL dispatch; stops on completion status.')
+    if input('Type START to connect and execute: ').strip() != 'START':
+        print('Cancelled without connection.')
         return
 
-    gate = threading.Barrier(3)
-    abort = threading.Event()
-    left_done = threading.Event()
-    failures = queue.Queue()
-    times = {}
-    workers = []
-
-    def move_left():
-        try:
-            gate.wait(timeout=10)
-            if abort.is_set():
-                return
-            times['left_start'] = time.monotonic()
-            check(robotleft.MoveL(
-                target, tool=TOOL_ID, user=USER_ID,
-                vel=velocity, acc=0.0, ovl=100.0,
-                blendR=-1.0, oacc=ACCEL_MM_S2, velAccParamMode=1
-            ), 'left backward MoveL')
-            times['left_end'] = time.monotonic()
-        except BaseException as exc:
-            failures.put(('left', str(exc)))
-            abort.set()
-            gate.abort()
-        finally:
-            left_done.set()
-
-    def feed_yarn():
-        attempted = False
-        try:
-            gate.wait(timeout=10)
-            if abort.is_set():
-                return
-            times['dc_start'] = time.monotonic()
-            attempted = True
-            dc_command(1)
-            # Stop on nominal deadline or peer failure. Firmware may stop earlier.
-            abort.wait(max(0.0, TARGET_TIME_S - (time.monotonic() - times['dc_start'])))
-        except BaseException as exc:
-            failures.put(('dc', str(exc)))
-            abort.set()
-            gate.abort()
-        finally:
-            if attempted:
-                try:
-                    dc_command(0)
-                    times['dc_stop'] = time.monotonic()
-                except BaseException as exc:
-                    failures.put(('dc_stop', str(exc)))
-                    abort.set()
-
+    move_attempted = False
+    completed = False
+    dc_attempted = False
+    stop_errors = []
     try:
         robotyarn = Robot.RPC('192.168.0.50')
-        robotleft = Robot.RPC('192.168.0.51')
-        # Do not silently fall back to percentage velocity with an older SDK.
-        parameters = inspect.signature(robotleft.MoveL).parameters
-        if 'velAccParamMode' not in parameters or 'oacc' not in parameters:
-            raise RuntimeError('Cannot verify physical-speed MoveL support. Check installed SDK; no movement sent.')
-        # BREAKPOINT: inspect .50 approach path before executing this call.
+        if not getattr(robotyarn, 'is_connect', False):
+            raise RuntimeError('.50 RPC connection failed; no motion sent')
+        check_robot_error()
+        if motion_done() != 1:
+            raise RuntimeError('Robot already moving; aborted')
+        log('Ready. Last pre-motion breakpoint: move_attempted = True')
+
+        move_attempted = True  # BREAKPOINT 1: before motion. Continue with F5.
+        started = time.monotonic()
         check(robotyarn.MoveL(
-            YARN_WORK_POSE, tool=TOOL_ID, user=USER_ID,
-            vel=YARN_APPROACH_VEL, blendR=-1.0
-        ), 'yarn approach work pose')
-        open_gripper(robotleft)
-        workers = [threading.Thread(target=move_left), threading.Thread(target=feed_yarn)]
-        for worker in workers:
-            worker.start()
-        gate.wait(timeout=10)
-        stop_requested = False
-        while any(worker.is_alive() for worker in workers):
-            if abort.is_set() and not left_done.is_set() and not stop_requested:
-                stop_left_best_effort()
-                stop_requested = True
-            for worker in workers:
-                worker.join(timeout=0.05)
-        if not failures.empty():
-            raise RuntimeError(list(failures.queue))
-        elapsed = times['left_end'] - times['left_start']
-        skew = abs(times['dc_start'] - times['left_start'])
-        print(f'Host command launch separation: {skew * 1000:.1f} ms (not physical start synchronization)')
-        print(f'MoveL call elapsed: {elapsed:.3f} s; nominal distance/call-time: {distance / elapsed:.3f} mm/s')
-        print('Done. .51 remains at endpoint with AO=13%; no automatic return.')
-    except BaseException:
-        abort.set()
-        gate.abort()
-        if workers and not left_done.is_set():
-            stop_left_best_effort()
-        raise
+            target, tool=TOOL_ID, user=USER_ID, vel=velocity, blendR=0.0
+        ), '.50 lift MoveL')
+        # No breakpoints until cleanup has finished.
+        log('MoveL accepted; movement is NOT yet confirmed complete')
+        seen_moving = False
+        while True:
+            check_robot_error()
+            state = motion_done()
+            now = time.monotonic()
+            elapsed = now - started
+            if elapsed >= MOTION_TIMEOUT_S:
+                raise RuntimeError('Motion/status wait exceeded timeout')
+            if state == 0:
+                seen_moving = True
+            elif seen_moving:
+                # Require 0 -> 1 so stale initial idle state is not completion.
+                completed = True
+                if not dc_attempted:
+                    raise RuntimeError('Movement ended before DC start; DC not started')
+                break
+            if not dc_attempted and elapsed >= DC_DELAY_S:
+                if not seen_moving or state != 0:
+                    raise RuntimeError('Motion not confirmed at DC delay; DC not started')
+                dc_attempted = True  # Set before call, in case response fails.
+                dc_started = time.monotonic()
+                dc_command(1)
+            time.sleep(POLL_INTERVAL_S)
     finally:
-        abort.set()
-        gate.abort()
-        for worker in workers:
-            if worker.ident is not None:
-                worker.join()
-        for arm in (robotyarn, robotleft):
-            if arm is not None:
+        # Best-effort network stop; Python pause/crash is not an emergency stop.
+        if robotyarn is not None:
+            if move_attempted and not completed:
                 try:
-                    arm.CloseRPC()
+                    check(robotyarn.StopMotion(), 'StopMotion')
+                    log('Motion STOP request accepted')
                 except Exception as exc:
-                    print(f'CloseRPC failed: {exc}')
+                    stop_errors.append(str(exc))
+                    log(f'MOTION STOP FAILED: {exc}; verify hardware/use emergency stop')
+            if dc_attempted:
+                try:
+                    dc_command(0)
+                except Exception as exc:
+                    stop_errors.append(str(exc))
+                    log(f'DC STOP FAILED: {exc}; verify hardware/use emergency stop')
+            try:
+                robotyarn.CloseRPC()
+            except Exception as exc:
+                log(f'CloseRPC failed: {exc}')
+    if stop_errors:
+        raise RuntimeError(f'Stop requests failed: {stop_errors}')
+    log(f'Completed status observed after {elapsed:.3f}s')  # BREAKPOINT 2
+    log(f'DC dispatch delay={dc_started - started:.3f}s (host timing)')
+    log('DC STOP was sent; verify physical stop. Robot remains at upper endpoint.')
 
 
 if __name__ == '__main__':
