@@ -28,13 +28,39 @@ def open_yarn_swing(arm):
     time.sleep(0.5)
 
 
+# --- RS-485 YARN FEEDER (RIGHT ARM END PLATE) ---
+# Feeder positions are independent of the legacy SetAO yarn swing.
+# Configure this sequence for the installed feeder before running on hardware.
+# Temporarily disabled until the feeder is functional.
+# FEEDER_POSITION_SEQUENCE = (0, 100)
+
+# def set_feeder_position(arm, pos, maxtime=2000):
+#     """Position the RS-485 feeder on robotright; block=0 waits for completion."""
+#     if not 0 <= pos <= 100:
+#         raise ValueError("Feeder position must be between 0 and 100.")
+#     if not maxtime > 0:
+#         raise ValueError("Feeder maxtime must be positive (milliseconds).")
+#     result = arm.MoveGripper(1, pos, 50, 0, maxtime, 0, 0, 0, 0, 0)
+#     if result != 0:
+#         raise RuntimeError(f"RS-485 feeder failed at position {pos}: {result}")
+#     return result
+
+# def feed_yarn(arm, positions=FEEDER_POSITION_SEQUENCE, maxtime=2000):
+#     """Run the feeder positions sequentially without writing analog outputs."""
+#     for pos in positions:
+#         set_feeder_position(arm, pos, maxtime=maxtime)
+
+
 # --- Calibration Databases ---
 def generate_calibration_map():
     safe_map = {}
     
-    # Exact physical coordinates measured with the Right Arm
+    # # Exact physical coordinates measured with the Right Arm
+    # measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
+    # measured_y = [-0.4, 14.6, 29.7, 44.3, 60, 74.8]
+    # New 1021
     measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
-    measured_y = [-0.4, 14.6, 29.7, 44.3, 60, 74.8]
+    measured_y = [4.6, 18.8, 33.8, 48.4, 63.2, 78.4]
     
     for x in range(6):
         for y in range(6):
@@ -55,7 +81,7 @@ def get_yarn_physical_location(grid_x, grid_y):
 
     # hard-coded mapping for the yarn distributor at (1, 1), into west needle position
     yarn_map = {
-        (1, 1): (11.9, 19.95)
+        (1, 1): (11.9, 20.95)
     }
     # Fallback to standard mapping if not defined
     return yarn_map.get((grid_x, grid_y), get_physical_location(grid_x, grid_y))
@@ -110,7 +136,8 @@ class Needle:
         self.rot_yarn = [0.0, 0.0, 0.0]
         
         self.offset_dist = 1.3
-        self.velocity = 15
+        self.velocity = 5
+        
 
     def simple_stitch(self, leftarm, rightarm, yarnarm):
         bx, by = self.physical_x, self.physical_y
@@ -160,7 +187,12 @@ class Needle:
 
         # --- YARN DISTRIBUTOR SEQUENCE (MOVE IN & HOLD) ---
         print(">> Yarn Arm: Moving in to position...")
-        yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
+        move_result = yarnarm.MoveL(waypoints["above_yarn"], tool=1, user=2, vel=self.velocity)
+        if move_result != 0:
+            raise RuntimeError(f"Yarn arm failed to reach needle position: {move_result}")
+
+        # RS-485 feeding temporarily disabled until the feeder is functional.
+        # feed_yarn(rightarm)
         
         open_yarn_swing(yarnarm)
         

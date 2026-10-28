@@ -12,7 +12,7 @@ def generate_calibration_map():
     
     # Exact physical coordinates measured with the Right Arm
     measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
-    measured_y = [-0.4, 14.2, 29.7, 44.3, 60, 74.8]
+    measured_y = [4.6, 18.8, 33.8, 48.4, 63.2, 78.4]
     
     for x in range(6):
         for y in range(6):
@@ -67,10 +67,9 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
     def get_target_x(needle_obj):
         return needle_obj.base_x_L if is_left_arm else needle_obj.physical_x
 
-    # 1. Approach safely using Joint Move to avoid straight-line errors
     print(">> Moving to safe home position...")
-    safe_hover_joints = [0, 0, 75, 0, 0, 0]
-    arm.MoveJ(safe_hover_joints, tool=1, user=2, vel=velocity) 
+    safe_hover_coord = [0, 0, 75, 0, 0, 0]
+    arm.MoveL(safe_hover_coord, tool=1, user=2, vel=velocity) 
     
     # 2. Traverse the Grid
     for y in range(6):
@@ -86,7 +85,7 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
             needle = needle_bed[(x, y)]
             target_x = get_target_x(needle)
             arm.MoveL([target_x, needle.physical_y, z_push] + rot, tool=1, user=2, vel=velocity)
-            time.sleep(0.3)  
+            time.sleep(1)  
             
         # Hop up at end of row
         end_needle = needle_bed[(5, y)]
@@ -95,7 +94,7 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
 
     print(f">> Test path complete for {arm_name}. Moving to safe park position.")
     # 3. Retreat safely using Joint Move
-    arm.MoveJ(safe_hover_joints, tool=1, user=2, vel=velocity)
+    arm.MoveL(safe_hover_coord, tool=1, user=2, vel=velocity)
 
 
 # ==========================================
@@ -103,7 +102,12 @@ def test_calibration_path(arm, needle_bed, is_left_arm=False, velocity=15):
 # ==========================================
 
 # Test Right Arm (Default)
-robotright.MoveL([.9, -.4, 50] + [0.0, 0.0, 0.0], tool=1, user=2, vel=10)
+robotright.MoveL(
+    [.9, 4.6, 50, 0.0, 0.0, 0.0],
+    tool=1,
+    user=2,
+    vel=5
+)
 test_calibration_path(robotright, needle_bed, is_left_arm=False)
 
 # Test Left Arm (Uncomment to test the Left Arm with the 2.6mm offset)
