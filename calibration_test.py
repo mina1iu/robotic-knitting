@@ -10,7 +10,10 @@ robotright = Robot.RPC('192.168.0.52')
 def generate_calibration_map():
     safe_map = {}
     
-    # Exact physical coordinates measured with the Right Arm
+    # # Exact physical coordinates measured with the Right Arm
+    # measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
+    # measured_y = [-0.4, 14.2, 29.7, 44.3, 60, 74.8]
+    # New 1021
     measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
     measured_y = [4.6, 18.8, 33.8, 48.4, 63.2, 78.4]
     
