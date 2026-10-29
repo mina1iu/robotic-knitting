@@ -3472,7 +3472,11 @@ class RPC():
     def MoveL(self, desc_pos, tool, user, joint_pos=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], vel=20.0, acc=0.0, ovl=100.0,
               blendR=-1.0, blendMode=0, exaxis_pos=[0.0, 0.0, 0.0, 0.0], search=0, offset_flag=0,
               offset_pos=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], oacc=100.0, config=-1, velAccParamMode=0, overSpeedStrategy=0,
-              speedPercent=10):
+              speedPercent=10, retry_on_socket_error=True):
+        # Local opt-in for calibration: surface communication failures instead
+        # of waiting/retrying a command whose outcome may be unknown.
+        if not retry_on_socket_error and self.reconnect_flag:
+            raise ConnectionError("Robot is reconnecting; no motion command issued")
         while self.reconnect_flag:
             time.sleep(0.1)
         if self.GetSafetyCode() != 0:
@@ -3519,6 +3523,8 @@ class RPC():
                      velAccParamMode])
                 flag = False
             except socket.error as e:
+                if not retry_on_socket_error:
+                    raise
                 flag = True
 
         if (overSpeedStrategy > 0):
