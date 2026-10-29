@@ -1,111 +1,76 @@
-# Robotic Knitting
-
-Python scripts for robotic knitting with three FAIRINO robot arms and the FAIRINO Python SDK. Two arms manipulate yarn loops, while a third arm positions and holds the yarn.
-
-The project maps a **6 × 6 needle bed**. The current knitting script runs **one stitch at needle `(1, 1)`**, rather than knitting the full grid.
+# Robotic knitting
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
-| `test.py` | Runs the three-arm single-stitch sequence. |
-| `calibration_test.py` | Moves an arm across the needle bed to check alignment. Tests the right arm by default. |
-| `fairino/Robot.py` | Included FAIRINO Python SDK implementation. |
-| `fairino/README.txt` | SDK release notes bundled with the project. |
-| `fairino/LICENSE` | License for the included SDK. |
+- `stitch_demo.py` (formerly `test.py`): demonstrates one stitch using the original stitch coordinates and gripper sequence. Running it connects to all three robots and performs real movement. Importing it does not.
+- `calibration.json`: enter each robot's manually measured needle X/Y positions here.
+- `calibration.py`: reads those positions and builds the calibration-test sequence.
+- `calibration_test.py`: prints the planned sequence without connecting to hardware.
+- `tests/test_calibration.py`: offline software checks.
 
-## Setup
+## Enter your points
 
-You need Python 3, the configured robot hardware, and a computer connected to the robot controllers' network. Use a Python version and SDK compatible with your controller firmware.
+Measure positions in each robot's web app, using the tool/user frame recorded for that arm in `calibration.json`. The three robots' coordinate frames are independent.
 
-From the project folder, create a virtual environment and install the SDK's external dependency:
+For each arm, find a needle entry such as `"2,1"` (column 2, row 1):
+
+```json
+"2,1": {"xy": null, "status": "uncalibrated"}
+```
+
+Replace `null` with that arm's actual `[X, Y]` measurement and change status to `measured`. For example, these made-up numbers show the syntax:
+
+```json
+"2,1": {"xy": [31.2, 18.4], "status": "measured"}
+```
+
+All 108 entries start empty. Each arm has its own full set of 36 independent X/Y pairs. Even needles in the same row/column can have different physical Y/X values; nothing is copied, averaged, or inferred.
+
+## Set the two test heights once
+
+Near the top of `calibration.json`:
+
+```json
+"test_heights": {"upper_z": null, "lower_z": null}
+```
+
+Replace both nulls with the installed setup's verified heights in millimeters. These two values apply to **every needle and every arm**, as requested. They are not repeated per needle. Upper Z must be greater than lower Z.
+
+Each arm's `orientation` holds its fixed `[RX, RY, RZ]` in degrees for this test. The initial `[0,0,0]` comes from the original script; verify it for each robot. Tool 1/user 2 also need to match the web app.
+
+For each needle, the planned path is:
+
+1. Move to its X/Y at `upper_z`.
+2. Lower to `lower_z`, keeping X/Y and orientation unchanged.
+3. Rise to `upper_z`, keeping X/Y and orientation unchanged.
+4. Travel to the next needle at `upper_z` and repeat.
+
+Full-grid order is `(0,0)` through `(5,0)`, then row 1, and so on. There is no sideways movement at lower Z and no automatic home move. The route from the current robot position to the first upper pose still needs to be checked. Identical numeric heights across different robot frames must be verified physically for each arm.
+
+## Preview without moving robots
+
+After entering heights and one needle:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install python-mbedtls
+python3 calibration_test.py left --needle 2 1
 ```
 
-On Windows, activate the environment with `.venv\Scripts\activate` instead.
-
-Keep the `fairino` folder beside the scripts so this import works:
-
-```python
-from fairino import Robot
-```
-
-## Robot configuration
-
-The controller addresses are set near the top of each script:
-
-| Arm | IP address | Role |
-| --- | --- | --- |
-| Yarn arm | `192.168.0.50` | Positions and holds yarn. |
-| Left arm | `192.168.0.51` | Pulls and holds the existing loop. |
-| Right arm | `192.168.0.52` | Moves yarn to the other needle. |
-
-Update these addresses if your setup differs. Both scripts use **tool frame `1`** and **user frame `2`**, which must be calibrated on the robots for this needle bed.
-
-Before running, check the measured needle coordinates, tool offsets, motion heights, and analog-output settings against the installed hardware. Clear the motion area and keep the emergency stop accessible.
-
-**Both scripts send real hardware commands immediately when run or imported. There is no simulation mode or confirmation prompt.**
-
-## Check calibration
-
-After verifying the setup, run:
+After entering all 36 needles for an arm:
 
 ```bash
-python calibration_test.py
+python3 calibration_test.py left
 ```
 
-This moves the right arm across all 36 grid positions, lifting between rows and returning to a hover position afterward. It also connects to the left controller.
+The preview validates the complete requested path before printing it. Missing measurements produce an error. These commands **only print poses**. Hardware execution remains unimplemented: the bundled SDK retries socket errors internally, so a fail-stop transport and an explicitly configured execution speed are still needed before a hardware runner can meet the requested failure behavior.
 
-To check the left arm instead, disable the right-arm execution calls at the bottom of the file and enable:
+## Stitch demonstration
 
-```python
-test_calibration_path(robotleft, needle_bed, is_left_arm=True)
-```
+`stitch_demo.py` retains its original stitch-specific waypoints and heights. Its needle dip/pull/yarn motions differ from the calibration test's straight down/up motion. It has not been connected to the JSON yet. Running it performs real hardware operations; use it only after checking the installed setup.
 
-The calibration values are stored separately in each script. Currently, they differ:
+Moving the bed/base or changing grippers, tool definitions, or user frames requires remeasuring affected positions.
 
-| Setting | `calibration_test.py` | `test.py` |
-| --- | --- | --- |
-| Second measured Y coordinate | `14.2` | `14.6` |
-| Left-arm X offset | `2.6` | `3.2` |
-
-Verify which values match the hardware before using calibration results for stitching.
-
-## Run one stitch
-
-After checking calibration and the three-arm paths, run:
+## Offline software checks
 
 ```bash
-python test.py
+python3 -m unittest discover -s tests -v
 ```
-
-The script performs these steps in sequence:
-
-1. Moves the left and right arms to their configured hover positions.
-2. Positions the yarn arm and closes its yarn swing to hold the yarn.
-3. Uses the left arm to pull and hold the existing loop.
-4. Uses the right arm to pick up yarn and move it from west to east.
-5. Releases and retracts the left and right grippers.
-6. Opens the yarn swing. The yarn arm stays in place at the end.
-
-## Adjust the stitch
-
-In `test.py`:
-
-- **Needle coordinates:** edit `measured_x` and `measured_y` in `generate_calibration_map()`.
-- **Motion settings:** edit offsets, heights, rotations, and `velocity` in `Needle.__init__()`.
-- **Target needle:** change `needle_bed[(1, 1)]` at the bottom. Grid indices range from `0` to `5`.
-- **Yarn-arm alignment:** edit `get_yarn_physical_location()`. Only `(1, 1)` currently has a dedicated yarn-arm coordinate; other positions fall back to the main needle map and need verification.
-- **Gripper control:** edit the `SetAO` values in the gripper and yarn-swing functions to match the hardware.
-
-## Current limitations
-
-- The RS-485 yarn feeder code is commented out and disabled.
-- The initial yarn-arm hover move is commented out; its first active move goes directly to the above-needle position.
-- The “BREAKPOINT: YARN PLACING” comment does not pause execution.
-- Most motion and gripper calls do not check return codes. Review controller status during operation.
-- These are hardware experiment scripts, not automated software tests.

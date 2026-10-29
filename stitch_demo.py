@@ -1,10 +1,5 @@
-from fairino import Robot
+"""Single-stitch hardware demonstration. Run only with the installed setup checked."""
 import time
-
-# A connection is established with the robot controllers.
-robotyarn  = Robot.RPC('192.168.0.50')  # Third arm: Yarn Distributor
-robotleft  = Robot.RPC('192.168.0.51')
-robotright = Robot.RPC('192.168.0.52')
 
 def close_gripper(arm):
     print("Gripper closing...")
@@ -248,18 +243,22 @@ class Needle:
         # (Retraction moves completely removed here)
 
 
-# --- Execution ---
-needle_bed = {}
+def main():
+    """Connect to all three robots and demonstrate one stitch at needle (1,1).
 
-# Initialize the 6x6 needle grid
-for x in range(6):
-    for y in range(6):
-        needle_bed[(x, y)] = Needle(grid_x=x, grid_y=y)
+    This demo still uses its original stitch coordinates and heights below.
+    It does not use the separate calibration-test heights in calibration.json.
+    """
+    from fairino import Robot
 
-print("\n====================================")
-print("--- Initiating Single Stitch at Needle (1, 1) ---")
-print("====================================")
+    robotyarn = Robot.RPC('192.168.0.50')
+    robotleft = Robot.RPC('192.168.0.51')
+    robotright = Robot.RPC('192.168.0.52')
 
-# Execute only the single stitch at (1, 1)
-target_needle = needle_bed[(1, 1)]
-target_needle.simple_stitch(robotleft, robotright, robotyarn)
+    print("--- Demonstrating one stitch at needle (1, 1) ---")
+    Needle(1, 1).simple_stitch(robotleft, robotright, robotyarn)
+
+
+# Importing this file never connects to robots. Running it performs real motion.
+if __name__ == '__main__':
+    main()
