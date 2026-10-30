@@ -26,7 +26,7 @@ DC_MOTOR_ID = 2
 SPEED = 50
 FORCE = 0
 MAX_TIME_MS = 10000
-DC_FEED_SECONDS = 5  # Timed cycle; confirm against current ESP32 firmware.
+DC_FEED_SECONDS = 2.5  # Timed cycle; confirm against current ESP32 firmware.
 
 
 def close_yarn_swing(arm):
@@ -63,9 +63,11 @@ def feed_yarn(arm):
 def generate_calibration_map():
     safe_map = {}
     
-    # Exact physical coordinates measured with the Right Arm
+    # # Exact physical coordinates measured with the Right Arm
+    # measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
+    # measured_y = [-0.4, 14.6, 29.7, 44.3, 60, 74.8]
     measured_x = [.9, 16.246, 31, 46.3, 60.7, 76.1]
-    measured_y = [-0.4, 14.6, 29.7, 44.3, 60, 74.8]
+    measured_y = [4.6, 18.8, 33.8, 48.4, 63.2, 78.4]
     
     for x in range(6):
         for y in range(6):
