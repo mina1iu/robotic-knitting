@@ -9,9 +9,34 @@ import argparse
 import ipaddress
 
 from calibration import ARM_NAMES, build_calibration_path, load_calibration
+from stitch_demo import Needle
 
 # FAIRINO MoveL uses speed percentage: 10 means 10%, not 10 mm/s.
-VELOCITY = 10
+VELOCITY = 15
+
+
+def build_alignment_path(arm_name, needles, *, data):
+    """Wrap the unchanged calibration route in the demo's (1, 1) hovers.
+
+    These are the demo's existing targets, not verified collision-free routes.
+    The middle target is defined in the demo, though its parking move is disabled.
+    """
+    path = build_calibration_path(arm_name, needles, data=data)
+    arm = data['arms'][arm_name]
+    if arm['tool'] != 1 or arm['user'] != 2:
+        raise ValueError('Demo hover positions require tool 1 and user frame 2')
+    needle = Needle(1, 1)
+    hovers = {
+        'left': [needle.base_x_L - needle.offset_dist - needle.clearance_x,
+                 needle.physical_y, needle.z_hover] + needle.rot_left,
+        'right': [needle.physical_x + needle.offset_dist + needle.clearance_x,
+                  needle.physical_y, needle.z_hover] + needle.rot_right,
+        'middle': [needle.base_x_Y, needle.base_y_Y + needle.yarn_y_hover_offset,
+                   needle.z_hover] + needle.rot_yarn,
+    }
+    return ([{'needle': None, 'stage': 'hover_start', 'pose': hovers[arm_name].copy()}]
+            + path
+            + [{'needle': None, 'stage': 'hover_end', 'pose': hovers[arm_name].copy()}])
 
 
 def execute_path(robot, path, arm):
@@ -19,26 +44,41 @@ def execute_path(robot, path, arm):
 
     Any error ends the sequence immediately. Do not retreat or retry on failure:
     the robot's position may be unknown. No gripper commands are sent.
+    Return True on completion, or print the failure and return False.
     """
     for index, step in enumerate(path):
         print(f"Moving: needle {step['needle']} {step['stage']}", flush=True)
-        result = robot.MoveL(step['pose'], tool=arm['tool'], user=arm['user'],
-                             vel=VELOCITY, blendR=-1.0, retry_on_socket_error=False)
+        try:
+            result = robot.MoveL(step['pose'], tool=arm['tool'], user=arm['user'],
+                                vel=VELOCITY, blendR=-1.0, retry_on_socket_error=False)
+        except Exception as error:
+            print(f"Execution stopped at {step['pose']}: {error}. No further moves issued.", flush=True)
+            return False
         if type(result) is not int or result != 0:
-            raise RuntimeError(f"MoveL failed at {step['pose']}: {result}; no further moves issued")
-        # The third move rises back up; X=5 is the last needle in this row.
-        if index % 3 == 2 and step['needle'][0] == 5:
-            print(f"Row {step['needle'][1]} complete; arm is at upper_z.", flush=True)
+            print(f"MoveL failed at {step['pose']}: {result}; no further moves issued", flush=True)
+            return False
+        # A lower → upper move finishes a needle; X=5 ends the row.
+        if (step['stage'] == 'upper' and index > 0
+                and path[index - 1]['stage'] == 'lower' and step['needle'][0] == 5):            print(f"Row {step['needle'][1]} complete; arm is at upper_z.", flush=True)
+        return True
 
 
 def disable_transport_retries(robot):
-    """Also disable Python XML-RPC's automatic resend after a broken connection.
+    """Use a fresh HTTP connection per request, without automatic resends.
 
-    This configures the existing connection only; it sends no robot commands.
+    Debugger pauses can outlast the controller's HTTP keep-alive timeout.
+    Discard the cached connection before sending, rather than retrying a command
+    after a lost response (when its execution status could be unknown).
+    This configures the transport only; it sends no robot commands.
     The SDK's own MoveL retry is disabled separately by execute_path.
     """
     transport = robot.robot('transport')
-    transport.request = transport.single_request
+
+    def fresh_request(host, handler, request_body, verbose=False):
+        transport.close()
+        return transport.single_request(host, handler, request_body, verbose)
+
+    transport.request = fresh_request
 
 
 def main(argv=None):
@@ -53,7 +93,7 @@ def main(argv=None):
         data = load_calibration()
         needles = [args.needle] if args.needle else [(x, y) for y in range(6) for x in range(6)]
         # Check every requested point BEFORE connecting, not halfway through a run.
-        path = build_calibration_path(args.arm, needles, data=data)
+        path = build_alignment_path(args.arm, needles, data=data)
         arm = data['arms'][args.arm]
         ipaddress.ip_address(arm['ip'])
         for field in ('tool', 'user'):
@@ -69,7 +109,7 @@ def main(argv=None):
     print(f"Frame: {arm['coordinate_frame']}")
     for step in path:
         print(f"Needle {step['needle']} {step['stage']:5}: {step['pose']}")
-    print('Check the route from the CURRENT position to the first upper pose, and clearance between needles.', flush=True)
+    print('Check the route from the CURRENT position to the demo hover, both hover transitions, and clearance between needles.', flush=True)
     if not args.execute:
         return
 
@@ -79,10 +119,12 @@ def main(argv=None):
     try:
         robot = Robot.RPC(arm['ip'])
         disable_transport_retries(robot)
-        execute_path(robot, path, arm)
+        if not execute_path(robot, path, arm):
+            return
     except Exception as error:
-        parser.exit(1, f'Execution stopped: {error}. No recovery movement attempted.\n')
-    print('Complete: left at the final needle at upper_z. No home or park move.')
+        print(f'Execution stopped: {error}. No recovery movement attempted.', flush=True)
+        return
+    print('Complete: returned to the stitch demo hover position.')
 
 
 if __name__ == '__main__':

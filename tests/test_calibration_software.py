@@ -16,12 +16,14 @@ import socket
 import subprocess
 import sys
 import unittest
+import xmlrpc.client
+from http.client import RemoteDisconnected
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from calibration import build_calibration_path, check_numbers, get_needle_calibration, load_calibration
-from calibration_test import execute_path, main
+from calibration_test import VELOCITY, build_alignment_path, disable_transport_retries, execute_path, main
 
 
 class PositionTests(unittest.TestCase):
@@ -104,11 +106,39 @@ class ExecutionTests(unittest.TestCase):
         robot = Mock()
         robot.MoveL.return_value = 0
         with contextlib.redirect_stdout(io.StringIO()):
-            execute_path(robot, path, data['arms']['left'])
+            self.assertTrue(execute_path(robot, path, data['arms']['left']))
         self.assertEqual(robot.MoveL.call_count, 108)
         for call, step in zip(robot.MoveL.call_args_list, path):
             self.assertEqual(call.args, (step['pose'],))
-            self.assertEqual(call.kwargs, {'tool': 1, 'user': 2, 'vel': 10, 'blendR': -1.0, 'retry_on_socket_error': False})
+            self.assertEqual(call.kwargs, {'tool': 1, 'user': 2, 'vel': VELOCITY, 'blendR': -1.0, 'retry_on_socket_error': False})
+
+    def test_hover_wraps_unchanged_points_for_each_arm(self):
+        data = self.make_data()
+        original = copy.deepcopy(data)
+        expected = {'left': [-63.254, 14.6, 70, 0, 0, 0],
+                    'right': [92.546, 14.6, 70, 0, 0, 0],
+                    'middle': [11.9, 69.95, 70, 0, 0, 0]}
+        for name, hover in expected.items():
+            path = build_alignment_path(name, [(0, 0), (5, 0)], data=data)
+            self.assertEqual(path[1:-1], build_calibration_path(name, [(0, 0), (5, 0)], data=data))
+            self.assertEqual(path[0]['pose'], path[-1]['pose'])
+            for actual, value in zip(path[0]['pose'], hover):
+                self.assertAlmostEqual(actual, value)
+        self.assertEqual(data, original)
+        data['arms']['left']['user'] = 3
+        with self.assertRaises(ValueError):
+            build_alignment_path('left', [(0, 0)], data=data)
+
+    def test_hover_sequence_stops_at_every_failure(self):
+        data = self.make_data()
+        path = build_alignment_path('left', [(0, 0)], data=data)
+        for index in range(len(path)):
+            for failure in (42, OSError('connection lost')):
+                robot = Mock()
+                robot.MoveL.side_effect = [0] * index + [failure]
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertFalse(execute_path(robot, path, data['arms']['left']))
+                self.assertEqual(robot.MoveL.call_count, index + 1)
 
     def test_errors_never_send_a_recovery_move(self):
         data = self.make_data()
@@ -116,8 +146,8 @@ class ExecutionTests(unittest.TestCase):
         for failure in (42, OSError('connection lost')):
             robot = Mock()
             robot.MoveL.side_effect = [0, failure]
-            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises((RuntimeError, OSError)):
-                execute_path(robot, path, data['arms']['left'])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertFalse(execute_path(robot, path, data['arms']['left']))
             self.assertEqual(robot.MoveL.call_count, 2)
 
     def test_cli_preview_and_invalid_paths_do_not_connect(self):
@@ -139,9 +169,49 @@ class ExecutionTests(unittest.TestCase):
         with patch.dict(sys.modules, {'fairino': SimpleNamespace(Robot=SimpleNamespace(RPC=rpc))}), patch('calibration_test.load_calibration', return_value=data), contextlib.redirect_stdout(io.StringIO()):
             main(['left', '--needle', '0', '0', '--execute'])
         rpc.assert_called_once_with('192.168.0.51')
-        self.assertEqual(robot.MoveL.call_count, 3)
+        self.assertEqual(robot.MoveL.call_count, 5)
+        expected = build_alignment_path('left', [(0, 0)], data=data)
+        self.assertEqual([call.args[0] for call in robot.MoveL.call_args_list],
+                         [step['pose'] for step in expected])
         transport = robot.robot.return_value
-        self.assertEqual(transport.request, transport.single_request)
+        self.assertNotEqual(transport.request, transport.single_request)
+
+    def test_transport_discards_idle_connections_without_resending(self):
+        # Real stdlib transport, but fake connections/requests: no network access.
+        transport = xmlrpc.client.Transport()
+        robot = SimpleNamespace(robot=Mock(return_value=transport))
+        disable_transport_retries(robot)
+
+        def reply(host, handler, body, verbose):
+            self.assertEqual(transport._connection, (None, None))
+            return (0,)
+
+        transport.single_request = Mock(side_effect=reply)
+        for _ in range(2):
+            idle_connection = Mock()
+            transport._connection = ('controller', idle_connection)
+            self.assertEqual(transport.request('controller', '/RPC2', b'fake'), (0,))
+            idle_connection.close.assert_called_once_with()
+        self.assertEqual(transport.single_request.call_count, 2)
+
+        transport.single_request.reset_mock()
+        transport.single_request.side_effect = RemoteDisconnected('lost reply')
+        with self.assertRaises(RemoteDisconnected):
+            transport.request('controller', '/RPC2', b'fake')
+        transport.single_request.assert_called_once_with('controller', '/RPC2', b'fake', False)
+
+    def test_cli_failure_prints_and_returns_without_system_exit(self):
+        data = self.make_data()
+        for failure in (42, OSError('connection lost')):
+            robot = Mock()
+            robot.MoveL.side_effect = [0, failure]
+            rpc = Mock(return_value=robot)
+            output = io.StringIO()
+            with patch.dict(sys.modules, {'fairino': SimpleNamespace(Robot=SimpleNamespace(RPC=rpc))}), patch('calibration_test.load_calibration', return_value=data), contextlib.redirect_stdout(output):
+                main(['left', '--needle', '0', '0', '--execute'])
+            self.assertEqual(robot.MoveL.call_count, 2)
+            self.assertIn('no further moves issued', output.getvalue().lower())
+            self.assertNotIn('Complete:', output.getvalue())
 
     def test_sdk_opt_out_surfaces_socket_failure_without_retry(self):
         # Extract only MoveL from SDK source: do not import SDK or construct RPC.
