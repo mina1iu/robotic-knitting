@@ -2,12 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug left calibration",
+      "name": "Debug left calibration (REAL MOTION)",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/calibration_test.py",
       "console": "integratedTerminal",
-      "args": ["left", "--execute"],
+      "cwd": "${workspaceFolder}",
+      "args": ["left"],
       "justMyCode": true
     }
   ]

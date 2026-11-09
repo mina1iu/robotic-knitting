@@ -1,7 +1,6 @@
 """ROBOT ALIGNMENT RUNNER — this is the file to run/debug.
 
-Preview left grid: python3 calibration_test.py left
-Move left robot:   python3 calibration_test.py left --execute
+Run left robot (REAL MOTION): python3 calibration_test.py left
 
 Reads calibration.json via calibration.py. Software tests in tests/ are separate.
 """
@@ -59,8 +58,9 @@ def execute_path(robot, path, arm):
             return False
         # A lower → upper move finishes a needle; X=5 ends the row.
         if (step['stage'] == 'upper' and index > 0
-                and path[index - 1]['stage'] == 'lower' and step['needle'][0] == 5):            print(f"Row {step['needle'][1]} complete; arm is at upper_z.", flush=True)
-        return True
+                and path[index - 1]['stage'] == 'lower' and step['needle'][0] == 5):
+            print(f"Row {step['needle'][1]} complete; arm is at upper_z.", flush=True)
+    return True
 
 
 def disable_transport_retries(robot):
@@ -82,12 +82,13 @@ def disable_transport_retries(robot):
 
 
 def main(argv=None):
-    """Preview by default; connect only when --execute was explicitly provided."""
+    """Run real motion after validating the complete requested path."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('arm', choices=ARM_NAMES, help='Arm whose X/Y positions to use')
     parser.add_argument('--needle', nargs=2, type=int, metavar=('COLUMN', 'ROW'),
                         help='Test only this needle; otherwise test all 36, row by row')
-    parser.add_argument('--execute', action='store_true', help='Connect and perform REAL robot motion')
+    # Keep older commands working; execution is now unconditional.
+    parser.add_argument('--execute', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
         data = load_calibration()
@@ -104,16 +105,12 @@ def main(argv=None):
     except (ValueError, OSError, KeyError, TypeError) as error:
         parser.error(str(error))
 
-    mode = 'EXECUTION' if args.execute else 'PREVIEW ONLY'
-    print(f"{mode}: {args.arm}, IP {arm['ip']}, tool {arm['tool']}, user {arm['user']}, velocity {VELOCITY}%")
+    print(f"EXECUTION: {args.arm}, IP {arm['ip']}, tool {arm['tool']}, user {arm['user']}, velocity {VELOCITY}%")
     print(f"Frame: {arm['coordinate_frame']}")
     for step in path:
         print(f"Needle {step['needle']} {step['stage']:5}: {step['pose']}")
     print('Check the route from the CURRENT position to the demo hover, both hover transitions, and clearance between needles.', flush=True)
-    if not args.execute:
-        return
-
-    # SDK import/connection occurs only in this explicit hardware execution branch.
+    # SDK import/connection occurs only inside this explicit execution entry point.
     from fairino import Robot
 
     try:

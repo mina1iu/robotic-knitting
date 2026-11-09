@@ -80,7 +80,7 @@ class PositionTests(unittest.TestCase):
                 build_calibration_path('left', [(0,0)], data=data)
 
     def test_imports_do_not_connect_to_hardware(self):
-        """The preview and stitch modules can be imported without loading the SDK."""
+        """The calibration and stitch modules can be imported without loading the SDK."""
         result = subprocess.run([sys.executable, '-c',
             "import calibration_test, stitch_demo, sys; assert 'fairino' not in sys.modules"],
             capture_output=True, text=True)
@@ -150,15 +150,13 @@ class ExecutionTests(unittest.TestCase):
                 self.assertFalse(execute_path(robot, path, data['arms']['left']))
             self.assertEqual(robot.MoveL.call_count, 2)
 
-    def test_cli_preview_and_invalid_paths_do_not_connect(self):
+    def test_cli_invalid_paths_do_not_connect(self):
         data = self.make_data()
         rpc = Mock()
         with patch.dict(sys.modules, {'fairino': SimpleNamespace(Robot=SimpleNamespace(RPC=rpc))}), patch('calibration_test.load_calibration', return_value=data), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            main(['left'])
-            rpc.assert_not_called()
             data['arms']['left']['needles']['5,5']['status'] = 'provisional'
             with self.assertRaises(SystemExit):
-                main(['left', '--execute'])
+                main(['left'])
             rpc.assert_not_called()
 
     def test_cli_execute_selects_only_requested_arm(self):
@@ -167,7 +165,7 @@ class ExecutionTests(unittest.TestCase):
         robot.MoveL.return_value = 0
         rpc = Mock(return_value=robot)
         with patch.dict(sys.modules, {'fairino': SimpleNamespace(Robot=SimpleNamespace(RPC=rpc))}), patch('calibration_test.load_calibration', return_value=data), contextlib.redirect_stdout(io.StringIO()):
-            main(['left', '--needle', '0', '0', '--execute'])
+            main(['left', '--needle', '0', '0'])
         rpc.assert_called_once_with('192.168.0.51')
         self.assertEqual(robot.MoveL.call_count, 5)
         expected = build_alignment_path('left', [(0, 0)], data=data)
@@ -208,7 +206,7 @@ class ExecutionTests(unittest.TestCase):
             rpc = Mock(return_value=robot)
             output = io.StringIO()
             with patch.dict(sys.modules, {'fairino': SimpleNamespace(Robot=SimpleNamespace(RPC=rpc))}), patch('calibration_test.load_calibration', return_value=data), contextlib.redirect_stdout(output):
-                main(['left', '--needle', '0', '0', '--execute'])
+                main(['left', '--needle', '0', '0'])
             self.assertEqual(robot.MoveL.call_count, 2)
             self.assertIn('no further moves issued', output.getvalue().lower())
             self.assertNotIn('Complete:', output.getvalue())
