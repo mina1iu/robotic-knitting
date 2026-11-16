@@ -122,30 +122,30 @@
         "2,0": {"xy": [27.8, 5.028], "status": "measured"},
         "2,1": {"xy": [27.518, 19.352], "status": "measured"},
         "2,2": {"xy": [27.7, 35], "status": "measured"},
-        "2,3": {"xy": [30.382, 45], "status": "uncalibrated"},
-        "2,4": {"xy": [30.418, 59.7], "status": "uncalibrated"},
-        "2,5": {"xy": [30.454, 74.7], "status": "uncalibrated"},
+        "2,3": {"xy": [26.127, 49.705], "status": "measured"},
+        "2,4": {"xy": [26.476, 63.961], "status": "measured"},
+        "2,5": {"xy": [26.283, 79], "status": "measured"},
 
         "3,0": {"xy": [43.049, 4.122], "status": "measured"},
         "3,1": {"xy": [42.362, 19], "status": "measured"},
         "3,2": {"xy": [41.9, 34.868], "status": "measured"},
-        "3,3": {"xy": [45, 45.3], "status": "uncalibrated"},
-        "3,4": {"xy": [45.377, 60], "status": "uncalibrated"},
-        "3,5": {"xy": [45.303, 74.523], "status": "uncalibrated"},
+        "3,3": {"xy": [41.545, 48.6], "status": "measured"},
+        "3,4": {"xy": [41.3, 64.472], "status": "measured"},
+        "3,5": {"xy": [41.5, 78.3], "status": "measured"},
 
         "4,0": {"xy": [58.2, 4.894], "status": "measured"},
         "4,1": {"xy": [57.5, 19.527], "status": "measured"},
         "4,2": {"xy": [56.9, 33.8], "status": "measured"},
-        "4,3": {"xy": [60.130, 44.650], "status": "uncalibrated"},
-        "4,4": {"xy": [60.337, 59.5], "status": "uncalibrated"},
-        "4,5": {"xy": [60.151, 74.347], "status": "uncalibrated"},
+        "4,3": {"xy": [56, 49.759], "status": "measured"},
+        "4,4": {"xy": [55.355, 64.604], "status": "measured"},
+        "4,5": {"xy": [56, 79.418], "status": "measured"},
 
-        "5,0": {"xy": [73.224, 4.719], "status": "mesasured"},
-        "5,1": {"xy": [72.512, 20], "status": "mesasured"},
+        "5,0": {"xy": [73.224, 4.719], "status": "measured"},
+        "5,1": {"xy": [72.512, 20], "status": "measured"},
         "5,2": {"xy": [71.914, 33.826], "status": "measured"},
-        "5,3": {"xy": [75.260, 44], "status": "uncalibrated"},
-        "5,4": {"xy": [75.296, 58.9], "status": "uncalibrated"},
-        "5,5": {"xy": [75, 74.17], "status": "uncalibrated"}
+        "5,3": {"xy": [71.648, 49.062], "status": "measured"},
+        "5,4": {"xy": [70.4, 65], "status": "measured"},
+        "5,5": {"xy": [71.4, 79.7], "status": "measured"}
       }
     }
   }
