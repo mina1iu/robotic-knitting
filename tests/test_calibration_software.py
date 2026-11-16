@@ -12,6 +12,7 @@ import ast
 import contextlib
 import copy
 import io
+import json
 import socket
 import subprocess
 import sys
@@ -128,6 +129,51 @@ class ExecutionTests(unittest.TestCase):
         data['arms']['left']['user'] = 3
         with self.assertRaises(ValueError):
             build_alignment_path('left', [(0, 0)], data=data)
+
+    def test_both_debug_configs_pause_after_retract_before_next_move(self):
+        configs = json.loads(Path('.vscode/launch.json').read_text())['configurations']
+        for name, ip in [('left', '192.168.0.51'), ('right', '192.168.0.52')]:
+            with self.subTest(arm=name):
+                config = next(c for c in configs if c['name'] == f'Debug {name} calibration (REAL MOTION)')
+                self.assertEqual(config['args'], [name, '--execute', '--pause-each-row'])
+                data = self.make_data()
+                robot = Mock()
+                robot.MoveL.return_value = 0
+                rpc = Mock(return_value=robot)
+                paused_at = []
+
+                def resume(prompt):
+                    paused_at.append(robot.MoveL.call_count)
+                    self.assertEqual(robot.MoveL.call_args.args[0][2], 45)
+                    return ''
+
+                with patch.dict(sys.modules, {'fairino': SimpleNamespace(Robot=SimpleNamespace(RPC=rpc))}), patch('calibration_test.load_calibration', return_value=data), patch('builtins.input', side_effect=resume), contextlib.redirect_stdout(io.StringIO()):
+                    main(config['args'])
+                rpc.assert_called_once_with(ip)
+                self.assertEqual(paused_at, [19, 37, 55, 73, 91, 109])
+                expected = build_alignment_path(name, [(x, y) for y in range(6) for x in range(6)], data=data)
+                self.assertEqual([call.args[0] for call in robot.MoveL.call_args_list],
+                                 [step['pose'] for step in expected])
+
+    def test_row_pause_stop_never_moves_to_next_row_or_hover(self):
+        data = self.make_data()
+        path = build_alignment_path('right', [(5, 0), (0, 1)], data=data)
+        for response in ('q', EOFError(), KeyboardInterrupt()):
+            robot = Mock()
+            robot.MoveL.return_value = 0
+            with patch('builtins.input', side_effect=[response]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertFalse(execute_path(robot, path, data['arms']['right'], pause_each_row=True))
+            self.assertEqual(robot.MoveL.call_count, 4)
+
+    def test_failed_row_retract_does_not_prompt_or_continue(self):
+        data = self.make_data()
+        path = build_alignment_path('right', [(5, 0)], data=data)
+        robot = Mock()
+        robot.MoveL.side_effect = [0, 0, 0, 42]
+        with patch('builtins.input') as prompt, contextlib.redirect_stdout(io.StringIO()):
+            self.assertFalse(execute_path(robot, path, data['arms']['right'], pause_each_row=True))
+        prompt.assert_not_called()
+        self.assertEqual(robot.MoveL.call_count, 4)
 
     def test_hover_sequence_stops_at_every_failure(self):
         data = self.make_data()

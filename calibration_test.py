@@ -38,7 +38,7 @@ def build_alignment_path(arm_name, needles, *, data):
             + [{'needle': None, 'stage': 'hover_end', 'pose': hovers[arm_name].copy()}])
 
 
-def execute_path(robot, path, arm):
+def execute_path(robot, path, arm, *, pause_each_row=False):
     """Run an already checked path, waiting for each move to finish.
 
     Any error ends the sequence immediately. Do not retreat or retry on failure:
@@ -60,6 +60,15 @@ def execute_path(robot, path, arm):
         if (step['stage'] == 'upper' and index > 0
                 and path[index - 1]['stage'] == 'lower' and step['needle'][0] == 5):
             print(f"Row {step['needle'][1]} complete; arm is at upper_z.", flush=True)
+            if pause_each_row:
+                try:
+                    answer = input('Paused. Press Enter to continue, or type q to stop: ')
+                except (EOFError, KeyboardInterrupt):
+                    print('\nExecution stopped; no further moves issued.', flush=True)
+                    return False
+                if answer.strip():
+                    print('Execution stopped; no further moves issued.', flush=True)
+                    return False
     return True
 
 
@@ -87,6 +96,8 @@ def main(argv=None):
     parser.add_argument('arm', choices=ARM_NAMES, help='Arm whose X/Y positions to use')
     parser.add_argument('--needle', nargs=2, type=int, metavar=('COLUMN', 'ROW'),
                         help='Test only this needle; otherwise test all 36, row by row')
+    parser.add_argument('--pause-each-row', action='store_true',
+                        help='Wait for Enter after each row, including before the final hover')
     # Keep older commands working; execution is now unconditional.
     parser.add_argument('--execute', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -116,7 +127,7 @@ def main(argv=None):
     try:
         robot = Robot.RPC(arm['ip'])
         disable_transport_retries(robot)
-        if not execute_path(robot, path, arm):
+        if not execute_path(robot, path, arm, pause_each_row=args.pause_each_row):
             return
     except Exception as error:
         print(f'Execution stopped: {error}. No recovery movement attempted.', flush=True)

@@ -8,7 +8,17 @@
       "program": "${workspaceFolder}/calibration_test.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
-      "args": ["left"],
+      "args": ["left", "--execute", "--pause-each-row"],
+      "justMyCode": true
+    },
+    {
+      "name": "Debug right calibration (REAL MOTION)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/calibration_test.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "args": ["right", "--execute", "--pause-each-row"],
       "justMyCode": true
     }
   ]

@@ -60,20 +60,20 @@ Replace `left` with `middle` or `right` only after entering and checking that ar
 
 1. Open the `robotic-knitting` folder in VS Code and save `calibration.json`.
 2. Press **⌘⇧D** to open Run and Debug.
-3. Select **Debug left calibration (REAL MOTION)** in the dropdown.
-4. Press **F5** to debug, or **Ctrl+F5** to run without debugging. Both perform real movement through all 36 left-arm needles.
+3. Select **Debug left calibration (REAL MOTION)** or **Debug right calibration (REAL MOTION)** in the dropdown.
+4. Press **F5** to debug, or **Ctrl+F5** to run without debugging. Both perform real movement through all 36 needles for the selected arm.
 
-The single configuration in `.vscode/launch.json` supplies the `left` argument. Using **Current File** without arguments causes `SystemExit: 2` because the script requires an arm name. If the named configuration is missing, open this repository folder (not just the Python file) and run **Developer: Reload Window** from the Command Palette.
+Both configurations enable `--pause-each-row`. After each row's final rise to upper Z, execution waits in the integrated terminal. Click the terminal and press **Enter** to continue, or type **q** and press Enter to stop without further movement. Any nonempty response, Ctrl+C, or closed input stops the sequence. The final row also pauses before the return to the demo hover. No breakpoint is required.
 
-To pause after each row, open `calibration_test.py` and click the left gutter beside this line inside `execute_path()` to set a breakpoint:
+Equivalent right-arm terminal command (REAL MOTION):
 
-```python
-print(f"Row {step['needle'][1]} complete; arm is at upper_z.", flush=True)
+```bash
+python3 calibration_test.py right --execute --pause-each-row
 ```
 
-It is reached after X=0 through X=5 have finished for that row, after the final rise to upper Z. Press **F5** to continue through the next row. This breakpoint is reached after the row has completed.
+Using **Current File** without arguments causes `SystemExit: 2` because the script requires an arm name. If the named configurations are missing, open this repository folder (not just the Python file) and run **Developer: Reload Window** from the Command Palette.
 
-Pausing Python does not stop a movement already sent to the controller. The row-end breakpoint waits until the blocking movement has returned; keep the controller's stop/emergency stop available during physical testing.
+Pausing Python does not stop a movement already sent to the controller. The row pause occurs after the blocking movement returns; keep the controller's stop/emergency stop available during physical testing.
 
 ## Movement sequence
 
